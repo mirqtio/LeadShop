@@ -30,26 +30,72 @@ jobs:
           # Setup SSH
           mkdir -p ~/.ssh
           
-          # Handle SSH key with proper newlines (GitHub secrets often lose newlines)
-          echo "$SSH_PRIVATE_KEY" | sed 's/\\n/\n/g' > ~/.ssh/id_rsa
+          # Try multiple SSH key formats
+          echo "Testing SSH key formats..."
+          
+          # Method 1: Direct echo (works if key has actual newlines)
+          echo "1. Trying direct echo method..."
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
-          # Test key format
-          echo "Testing SSH key format..."
-          if ! ssh-keygen -l -f ~/.ssh/id_rsa; then
-            echo "First format failed, trying alternative format..."
-            # Try with printf for better newline handling
-            printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          if ssh-keygen -l -f ~/.ssh/id_rsa 2>/dev/null; then
+            echo "✓ Direct echo method works!"
+          else
+            echo "✗ Direct echo method failed"
+            
+            # Method 2: Handle escaped newlines
+            echo "2. Trying escaped newline conversion..."
+            echo "$SSH_PRIVATE_KEY" | sed 's/\\n/\n/g' > ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
             
-            if ! ssh-keygen -l -f ~/.ssh/id_rsa; then
-              echo "ERROR: SSH key format invalid even after reformatting"
-              echo "Key starts with: $(head -c 50 ~/.ssh/id_rsa)"
-              exit 1
+            if ssh-keygen -l -f ~/.ssh/id_rsa 2>/dev/null; then
+              echo "✓ Escaped newline method works!"
+            else
+              echo "✗ Escaped newline method failed"
+              
+              # Method 3: Printf for better formatting
+              echo "3. Trying printf method..."
+              printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+              chmod 600 ~/.ssh/id_rsa
+              
+              if ssh-keygen -l -f ~/.ssh/id_rsa 2>/dev/null; then
+                echo "✓ Printf method works!"
+              else
+                echo "✗ Printf method failed"
+                
+                # Method 4: Try base64 decode (in case key is encoded)
+                echo "4. Trying base64 decode..."
+                if echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_rsa 2>/dev/null; then
+                  chmod 600 ~/.ssh/id_rsa
+                  
+                  if ssh-keygen -l -f ~/.ssh/id_rsa 2>/dev/null; then
+                    echo "✓ Base64 decode method works!"
+                  else
+                    echo "✗ Base64 decode method failed"
+                    echo ""
+                    echo "=== KEY ANALYSIS ==="
+                    echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
+                    echo "Key file lines: $(wc -l < ~/.ssh/id_rsa)"
+                    echo "Key starts with: $(head -c 30 ~/.ssh/id_rsa | tr '\n' ' ')"
+                    echo "Key ends with: $(tail -c 30 ~/.ssh/id_rsa | tr '\n' ' ')"
+                    echo ""
+                    echo "ERROR: All SSH key format methods failed!"
+                    echo "The SSH private key in GitHub secrets appears to be invalid or corrupted."
+                    echo "Please verify the key format and re-add it to GitHub secrets."
+                    exit 1
+                  fi
+                else
+                  echo "✗ Base64 decode failed - not base64 encoded"
+                  echo ""
+                  echo "ERROR: All SSH key format methods failed!"
+                  exit 1
+                fi
+              fi
             fi
           fi
           
           echo "SSH key format is valid ✓"
+          echo "Key fingerprint: $(ssh-keygen -l -f ~/.ssh/id_rsa)"
           
           # Add host to known_hosts
           echo "Adding host to known_hosts..."

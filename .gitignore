@@ -117,6 +117,9 @@ create_tables_test.py
 id_rsa*
 id_ed25519*
 
+# Debug scripts (may contain sensitive info)
+scripts/debug_ssh_key.sh
+
 # Local development
 .local/
 local_settings.py
