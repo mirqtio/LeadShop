@@ -1,0 +1,137 @@
+services:
+  web:
+    build: .
+    container_name: leadshop_web
+    restart: always
+    ports:
+      - "8000:8000"
+    mem_limit: 1g
+    memswap_limit: 1g
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://leadfactory:${POSTGRES_PASSWORD:-leadfactory}@db:5432/leadfactory_dev
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_ID=${STRIPE_PRICE_ID:-}
+      - HUMANLOOP_API_KEY=${HUMANLOOP_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY:-}
+      - GOOGLE_PAGESPEED_API_KEY=${GOOGLE_PAGESPEED_API_KEY:-}
+      - SEMRUSH_API_KEY=${SEMRUSH_API_KEY:-}
+      - SCREENSHOTONE_KEY=${SCREENSHOTONE_KEY:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME:-}
+      - USE_STUBS=false
+      - ENVIRONMENT=production
+      - APP_NAME=LeadShop
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Worker for Assessment Orchestrator (PRP-002)
+  worker:
+    build: .
+    container_name: leadshop_worker
+    restart: always
+    mem_limit: 512m
+    memswap_limit: 512m
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://leadfactory:${POSTGRES_PASSWORD:-leadfactory}@db:5432/leadfactory_dev
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GOOGLE_PAGESPEED_API_KEY=${GOOGLE_PAGESPEED_API_KEY:-}
+      - SEMRUSH_API_KEY=${SEMRUSH_API_KEY:-}
+      - SCREENSHOTONE_KEY=${SCREENSHOTONE_KEY:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME:-}
+      - ENVIRONMENT=production
+    depends_on:
+      - db
+      - redis
+    command: celery -A src.core.celery_app worker --loglevel=info --concurrency=4
+    deploy:
+      replicas: 2
+    healthcheck:
+      test: ["CMD", "celery", "-A", "src.core.celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Flower Monitoring (PRP-002)
+  flower:
+    build: .
+    container_name: leadshop_flower
+    restart: always
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+    command: celery -A src.core.celery_app flower --port=5555
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: postgres:16-alpine
+    container_name: leadshop_db
+    restart: always
+    mem_limit: 512m
+    memswap_limit: 512m
+    environment:
+      - POSTGRES_USER=leadfactory
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-leadfactory}
+      - POSTGRES_DB=leadfactory_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadfactory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: leadshop_redis
+    restart: always
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

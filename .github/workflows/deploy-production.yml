@@ -1,0 +1,191 @@
+name: Production Deployment
+
+on:
+  # Manual deployment trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+      
+      skip_health_check:
+        description: 'Skip health check after deployment'
+        required: false
+        default: false
+        type: boolean
+  
+  # Automatic deployment on main branch (optional)
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/ci-consolidated.yml'
+      - 'docs/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/leadshop
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set deployment variables
+      run: |
+        echo "DEPLOYMENT_ENV=${{ github.event.inputs.environment || 'production' }}" >> $GITHUB_ENV
+        echo "DEPLOYMENT_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+        echo "DEPLOYMENT_SHA=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+        echo "SKIP_HEALTH_CHECK=${{ github.event.inputs.skip_health_check || 'false' }}" >> $GITHUB_ENV
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Set up SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keygen -l -f ~/.ssh/deploy_key
+    
+    - name: Add VPS to known_hosts
+      run: |
+        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+    
+    - name: Prepare deployment package
+      run: |
+        echo "📦 Preparing deployment package..."
+        
+        # Create deployment directory
+        mkdir -p deployment
+        
+        # Copy essential files
+        cp docker-compose.prod.yml deployment/
+        cp -r scripts/ deployment/ 2>/dev/null || true
+        
+        # Create deployment info
+        cat > deployment/deploy-info.json << EOF
+        {
+          "environment": "${{ env.DEPLOYMENT_ENV }}",
+          "timestamp": "${{ env.DEPLOYMENT_TIME }}",
+          "commit_sha": "${{ github.sha }}",
+          "commit_short": "${{ env.DEPLOYMENT_SHA }}",
+          "branch": "${{ github.ref_name }}",
+          "triggered_by": "${{ github.event_name }}",
+          "actor": "${{ github.actor }}"
+        }
+        EOF
+        
+        echo "✅ Deployment package prepared"
+    
+    - name: Deploy to VPS
+      run: |
+        echo "🚀 Starting deployment to ${{ env.DEPLOYMENT_ENV }}..."
+        echo "Deploying commit ${{ env.DEPLOYMENT_SHA }} to ${{ env.DEPLOYMENT_ENV }}"
+        echo "Deployment time: ${{ env.DEPLOYMENT_TIME }}"
+        
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'SSH'
+          set -e
+          echo "Connected to VPS as deploy user"
+          
+          # Navigate to app directory
+          cd /srv/leadshop
+          
+          # Pull latest code from GitHub (VPS uses its own deploy key)
+          echo "Pulling latest code from GitHub..."
+          git pull origin main
+          
+          # Update containers with latest code
+          echo "Updating Docker containers..."
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
+          
+          echo "✅ Deployment completed successfully"
+        SSH
+    
+    - name: Health check deployment
+      if: env.SKIP_HEALTH_CHECK != 'true'
+      run: |
+        echo "🏥 Performing health check on deployed application..."
+        echo "⏳ Waiting for containers to stabilize..."
+        sleep 30
+        
+        # Execute health check with proper error handling
+        set +e  # Disable immediate exit on error to capture SSH exit code
+        ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash -s <<'HEALTH_CHECK_EOF'
+          set -e
+          echo "🔍 Checking container health status..."
+          
+          # Check if containers are running
+          if ! docker compose -f /srv/leadshop/docker-compose.prod.yml ps --filter "status=running" | grep -q "leadshop_web"; then
+            echo "❌ Web container not running"
+            exit 1
+          fi
+          
+          if ! docker compose -f /srv/leadshop/docker-compose.prod.yml ps --filter "status=running" | grep -q "leadshop_db"; then
+            echo "❌ Database container not running"
+            exit 1
+          fi
+          
+          # Wait for application startup
+          echo "⏳ Waiting for application to be ready..."
+          for i in {1..12}; do
+            if curl -f -s http://localhost:8000/health > /dev/null 2>&1; then
+              echo "✅ Health check passed - application is responding"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/12: Waiting for application..."
+            sleep 10
+          done
+          
+          echo "❌ Health check failed - application not responding after 2 minutes"
+          echo "📋 Container logs:"
+          docker compose -f /srv/leadshop/docker-compose.prod.yml logs --tail=20
+          exit 1
+        HEALTH_CHECK_EOF
+        
+        # Capture the SSH exit code
+        SSH_EXIT_CODE=$?
+        set -e  # Re-enable immediate exit on error
+        
+        if [ $SSH_EXIT_CODE -eq 0 ]; then
+          echo "✅ Health check completed successfully"
+          exit 0
+        else
+          echo "❌ Health check failed with SSH exit code $SSH_EXIT_CODE"
+          exit 1
+        fi
+    
+    - name: Deployment notification
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 Deployment SUCCESS: ${{ env.DEPLOYMENT_ENV }} environment updated"
+          echo "Commit: ${{ env.DEPLOYMENT_SHA }} (${{ github.sha }})"
+          echo "Time: ${{ env.DEPLOYMENT_TIME }}"
+          echo "Triggered by: ${{ github.actor }} via ${{ github.event_name }}"
+        else
+          echo "❌ Deployment FAILED: ${{ env.DEPLOYMENT_ENV }} environment"
+          echo "Commit: ${{ env.DEPLOYMENT_SHA }} (${{ github.sha }})"
+          echo "Check logs for rollback procedures"
+        fi
+    
+    - name: Upload deployment artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: deployment-${{ env.DEPLOYMENT_ENV }}-${{ env.DEPLOYMENT_SHA }}
+        path: |
+          deployment/
+        retention-days: 30

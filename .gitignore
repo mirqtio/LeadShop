@@ -1,0 +1,122 @@
+# Environment Variables & Secrets
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env
+.environment
+
+# Secret setup scripts and sensitive docs
+setup_github_secrets.sh
+VPS_DEPLOYMENT_SETUP.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-workspace
+*.sublime-project
+
+# Testing
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+htmlcov/
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Database
+*.db
+*.sqlite3
+*.sqlite
+migrations/versions/*.py
+
+# Logs
+logs/
+*.log
+log/
+
+# Docker
+docker-compose.override.yml
+
+# OS
+Thumbs.db
+*.tmp
+*.temp
+
+# AWS/Deployment packages
+*.pkg
+AWSCLIV2.pkg
+
+# Claude/AI Assistant Files
+.claude/
+.superclaude/
+Tmux-Orchestrator/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+test_prp_*.py
+validate_prp_*.py
+simple_test.py
+test_db_connection.py
+create_tables_test.py
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# SSH Keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Local development
+.local/
+local_settings.py

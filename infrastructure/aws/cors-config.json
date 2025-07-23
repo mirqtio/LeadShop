@@ -1,0 +1,29 @@
+{
+    "CORSRules": [
+        {
+            "AllowedOrigins": [
+                "http://localhost:3000",
+                "http://localhost:8000",
+                "https://localhost:3000",
+                "https://localhost:8000",
+                "https://staging.leadfactory.com",
+                "https://leadfactory.com"
+            ],
+            "AllowedHeaders": [
+                "*"
+            ],
+            "AllowedMethods": [
+                "GET",
+                "PUT",
+                "POST",
+                "DELETE",
+                "HEAD"
+            ],
+            "MaxAgeSeconds": 3000,
+            "ExposeHeaders": [
+                "ETag",
+                "x-amz-meta-custom-header"
+            ]
+        }
+    ]
+}
