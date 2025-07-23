@@ -29,12 +29,27 @@ jobs:
           
           # Setup SSH
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          
+          # Handle SSH key with proper newlines (GitHub secrets often lose newlines)
+          echo "$SSH_PRIVATE_KEY" | sed 's/\\n/\n/g' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
           # Test key format
           echo "Testing SSH key format..."
-          ssh-keygen -l -f ~/.ssh/id_rsa || echo "ERROR: Invalid SSH key format"
+          if ! ssh-keygen -l -f ~/.ssh/id_rsa; then
+            echo "First format failed, trying alternative format..."
+            # Try with printf for better newline handling
+            printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            
+            if ! ssh-keygen -l -f ~/.ssh/id_rsa; then
+              echo "ERROR: SSH key format invalid even after reformatting"
+              echo "Key starts with: $(head -c 50 ~/.ssh/id_rsa)"
+              exit 1
+            fi
+          fi
+          
+          echo "SSH key format is valid ✓"
           
           # Add host to known_hosts
           echo "Adding host to known_hosts..."
