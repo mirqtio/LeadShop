@@ -50,8 +50,8 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="LeadFactory - Business Lead Assessment and Revenue Optimization System",
-    docs_url="/docs" if settings.ENVIRONMENT == "development" else None,
-    redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
+    docs_url="/docs",  # Enable docs in production for debugging
+    redoc_url="/redoc",  # Enable redoc in production for debugging
     lifespan=lifespan
 )
 

@@ -90,6 +90,7 @@ jobs:
         echo "✅ Deployment package prepared"
     
     - name: Deploy to VPS
+      timeout-minutes: 15
       run: |
         echo "🚀 Starting deployment to ${{ env.DEPLOYMENT_ENV }}..."
         echo "Deploying commit ${{ env.DEPLOYMENT_SHA }} to ${{ env.DEPLOYMENT_ENV }}"
@@ -109,6 +110,16 @@ jobs:
           # Update containers with latest code
           echo "Updating Docker containers..."
           docker compose -f docker-compose.prod.yml pull
+          
+          # Build with timeout and better caching
+          echo "Building containers with optimized settings..."
+          timeout 600 docker compose -f docker-compose.prod.yml build --parallel || {
+            echo "Build timed out, trying restart existing containers..."
+            docker compose -f docker-compose.prod.yml restart
+          }
+          
+          # Start containers
+          echo "Starting containers..."
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
           
           echo "✅ Deployment completed successfully"

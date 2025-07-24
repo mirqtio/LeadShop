@@ -22,14 +22,23 @@ api_router.include_router(assessment_ui.router)  # Assessment UI endpoints
 @api_router.get("/health", tags=["health"])
 async def api_health():
     """API v1 health check endpoint"""
-    return {
-        "status": "healthy",
-        "version": "v1",
-        "endpoints": [
-            "/leads - Lead management CRUD operations",
-            "/assessments - Assessment data and pipeline integration",
-            "/campaigns - Email campaign tracking and metrics",
-            "/sales - Revenue attribution and transaction management",
-            "/orchestrator - Assessment orchestrator task management (PRP-002)"
-        ]
-    }
+    try:
+        # Simple health check for API v1
+        return {
+            "status": "healthy",
+            "version": "v1",
+            "endpoints": [
+                "/leads - Lead management CRUD operations",
+                "/assessments - Assessment data and pipeline integration", 
+                "/campaigns - Email campaign tracking and metrics",
+                "/sales - Revenue attribution and transaction management",
+                "/orchestrator - Assessment orchestrator task management (PRP-002)",
+                "/assessment - Interactive assessment UI with Google OAuth"
+            ]
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "version": "v1"
+        }
