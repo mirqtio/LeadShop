@@ -14,8 +14,8 @@ from enum import Enum
 from src.core.config import settings
 from src.models.assessment_cost import AssessmentCost
 from src.assessments.screenshot_capture import capture_website_screenshots, ScreenshotMetadata
-from src.assessments.semrush_integration import analyze_domain_seo, SEMrushMetrics
-from src.assessments.visual_analysis import analyze_website_visuals, VisualAnalysisMetrics
+from src.assessments.semrush_integration import assess_semrush_domain, SEMrushMetrics
+from src.assessments.visual_analysis import assess_visual_analysis, VisualAnalysisMetrics
 from src.assessments.score_calculator import calculate_business_score, BusinessImpactScore
 from src.assessments.content_generator import generate_marketing_content, GeneratedContent
 
