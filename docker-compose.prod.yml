@@ -8,7 +8,7 @@ services:
     mem_limit: 1g
     memswap_limit: 1g
     environment:
-      - DATABASE_URL=postgresql+asyncpg://leadfactory:${POSTGRES_PASSWORD:-leadfactory}@db:5432/leadfactory_dev
+      - DATABASE_URL=postgresql+asyncpg://leadfactory:${POSTGRES_PASSWORD:-leadfactory}@db:5432/leadfactory
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -54,7 +54,7 @@ services:
     mem_limit: 512m
     memswap_limit: 512m
     environment:
-      - DATABASE_URL=postgresql+asyncpg://leadfactory:${POSTGRES_PASSWORD:-leadfactory}@db:5432/leadfactory_dev
+      - DATABASE_URL=postgresql+asyncpg://leadfactory:${POSTGRES_PASSWORD:-leadfactory}@db:5432/leadfactory
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -112,7 +112,7 @@ services:
     environment:
       - POSTGRES_USER=leadfactory
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-leadfactory}
-      - POSTGRES_DB=leadfactory_dev
+      - POSTGRES_DB=leadfactory
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
