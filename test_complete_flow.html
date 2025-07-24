@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Complete Flow Test</title>
+</head>
+<body>
+    <h1>Testing Complete Assessment Flow</h1>
+    <div id="test-results"></div>
+    
+    <script>
+        async function testCompleteFlow() {
+            const results = document.getElementById('test-results');
+            results.innerHTML = '<p>Starting complete flow test...</p>';
+            
+            try {
+                // Step 1: Submit assessment
+                console.log('Step 1: Submitting assessment...');
+                const submitResponse = await fetch('http://localhost:8001/api/v1/simple-assessment/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: 'https://github.com',
+                        business_name: 'GitHub Inc'
+                    })
+                });
+                
+                if (!submitResponse.ok) {
+                    throw new Error(`Submit failed: ${submitResponse.status}`);
+                }
+                
+                const submitData = await submitResponse.json();
+                console.log('Submit response:', submitData);
+                
+                results.innerHTML += `<p>✅ Step 1 Complete: Task ${submitData.task_id} submitted</p>`;
+                
+                // Step 2: Poll for completion
+                let attempts = 0;
+                const maxAttempts = 30; // 30 attempts = 1 minute
+                
+                const pollStatus = async () => {
+                    attempts++;
+                    console.log(`Polling attempt ${attempts}...`);
+                    
+                    const statusResponse = await fetch(`http://localhost:8001/api/v1/simple-assessment/status/${submitData.task_id}`);
+                    const statusData = await statusResponse.json();
+                    
+                    results.innerHTML = results.innerHTML.replace(/Step 2:.*/, '') + 
+                        `<p>🔄 Step 2: Checking status (attempt ${attempts})... Status: ${statusData.status}</p>`;
+                    
+                    if (statusData.status === 'completed') {
+                        results.innerHTML += '<p>✅ Step 2 Complete: Assessment finished!</p>';
+                        
+                        // Step 3: Display results
+                        const resultCount = Object.keys(statusData.results || {}).length;
+                        results.innerHTML += `<p>✅ Step 3: ${resultCount} assessment components completed</p>`;
+                        
+                        // Show sample results
+                        const sampleResults = Object.entries(statusData.results || {}).slice(0, 3);
+                        results.innerHTML += '<h3>Sample Results:</h3><ul>';
+                        
+                        for (const [component, data] of sampleResults) {
+                            const score = data.data?.score || 'N/A';
+                            results.innerHTML += `<li><strong>${component.toUpperCase()}</strong>: Score ${score}, Status: ${data.status}</li>`;
+                        }
+                        
+                        results.innerHTML += '</ul>';
+                        results.innerHTML += '<p>🎉 <strong>COMPLETE FLOW TEST PASSED!</strong></p>';
+                        
+                        return;
+                    } else if (statusData.status === 'failed') {
+                        results.innerHTML += `<p>❌ Assessment failed: ${statusData.error || 'Unknown error'}</p>`;
+                        return;
+                    } else if (attempts >= maxAttempts) {
+                        results.innerHTML += '<p>⏰ Timeout: Assessment took too long</p>';
+                        return;
+                    }
+                    
+                    // Continue polling
+                    setTimeout(pollStatus, 2000);
+                };
+                
+                await pollStatus();
+                
+            } catch (error) {
+                console.error('Test failed:', error);
+                results.innerHTML += `<p>❌ Test failed: ${error.message}</p>`;
+            }
+        }
+        
+        // Start test automatically
+        testCompleteFlow();
+    </script>
+</body>
+</html>

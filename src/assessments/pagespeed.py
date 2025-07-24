@@ -103,10 +103,21 @@ class PageSpeedClient:
                 "locale": "en_US"
             }
             
-            logger.info(f"Analyzing URL with PageSpeed API", url=url, strategy=strategy)
+            logger.info(f"Making PageSpeed API request to {self.BASE_URL}", extra={
+                "url": url, 
+                "strategy": strategy,
+                "api_key_configured": bool(self.api_key),
+                "params": {k: v for k, v in params.items() if k != 'key'}  # Don't log API key
+            })
             
             # Make API request with timeout
             response = await self.client.get(self.BASE_URL, params=params)
+            
+            logger.info(f"PageSpeed API response received", extra={
+                "status_code": response.status_code,
+                "response_size": len(response.content) if response.content else 0,
+                "url": url
+            })
             
             if response.status_code == 429:
                 raise PageSpeedError("Rate limit exceeded - too many requests")

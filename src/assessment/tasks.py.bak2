@@ -16,14 +16,7 @@ from src.models.lead import Lead, Assessment
 from src.core.logging import get_logger
 from .utils import (
     update_assessment_field, 
-    update_assessment_status,
-    sync_update_assessment_field,
-    sync_update_assessment_status, 
-    sync_get_lead_info,
-    sync_assess_google_business_profile,
-    run_async_in_celery,
-    debug_async_function_call,
-    prepare_assessment_data_for_storage,
+    update_assessment_status, 
     ASSESSMENT_STATUS,
     AssessmentError
 )
@@ -70,34 +63,40 @@ def pagespeed_task(self, lead_id: int) -> Dict[str, Any]:
     try:
         logger.info(f"Starting PageSpeed assessment for lead {lead_id}")
         
-        # Get lead information using sync function
-        url, company = sync_get_lead_info(lead_id)
-        if not url:
-            raise AssessmentError(f"Lead {lead_id} has no URL for PageSpeed analysis")
+        # Get lead information using sync database access
+        from src.core.database import SyncSessionLocal
+        
+        with SyncSessionLocal() as session:
+            result = session.execute(select(Lead).where(Lead.id == lead_id))
+            lead = result.scalar_one_or_none()
+            if not lead:
+                raise AssessmentError(f"Lead {lead_id} not found")
+            if not lead.url:
+                raise AssessmentError(f"Lead {lead_id} has no URL for PageSpeed analysis")
+            url, company = lead.url, lead.company
         
         # PRP-003: Use actual PageSpeed API client
         from src.assessments.pagespeed import assess_pagespeed, PageSpeedError
         
         try:
-            # Execute PageSpeed assessment with mobile-first strategy and cost tracking
-            # Use utility function for proper async handling in Celery worker context
-            pagespeed_results = run_async_in_celery(assess_pagespeed, url, company, lead_id)
+            # Execute PageSpeed assessment - convert async to sync for Celery
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                pagespeed_results = loop.run_until_complete(assess_pagespeed(url, company, lead_id))
+            finally:
+                loop.close()
             
             # Extract performance score from Core Web Vitals
             performance_score = pagespeed_results.get("performance_score", 0)
             
-            # Store cost records in database synchronously
+            # Store cost records in database using sync session
             if pagespeed_results.get("cost_records"):
-                from src.core.database import SyncSessionLocal
                 with SyncSessionLocal() as session:
-                    try:
-                        for cost_record in pagespeed_results["cost_records"]:
-                            session.add(cost_record)
-                        session.commit()
-                        logger.debug(f"Stored {len(pagespeed_results['cost_records'])} cost records for lead {lead_id}")
-                    except Exception as cost_exc:
-                        session.rollback()
-                        logger.error(f"Failed to store cost records for lead {lead_id}: {cost_exc}")
+                    for cost_record in pagespeed_results["cost_records"]:
+                        session.add(cost_record)
+                    session.commit()
             
         except PageSpeedError as api_exc:
             # Log specific PageSpeed API errors
@@ -108,11 +107,13 @@ def pagespeed_task(self, lead_id: int) -> Dict[str, Any]:
             logger.error(f"PageSpeed assessment error for lead {lead_id}: {exc}")
             raise AssessmentError(f"PageSpeed assessment failed: {exc}")
         
-        # Prepare data for storage by converting AssessmentCost objects to serializable format
-        pagespeed_data_for_storage = prepare_assessment_data_for_storage(pagespeed_results)
-        
         # Store results in database using sync functions
-        sync_update_assessment_field(lead_id, 'pagespeed_data', pagespeed_data_for_storage)
+        from .utils import sync_update_assessment_field
+        
+        # Store PageSpeed data
+        sync_update_assessment_field(lead_id, 'pagespeed_data', pagespeed_results)
+        
+        # Store PageSpeed score
         sync_update_assessment_field(lead_id, 'pagespeed_score', performance_score)
         
         task_result = {
@@ -184,15 +185,30 @@ def security_task(self, lead_id: int) -> Dict[str, Any]:
     try:
         logger.info(f"Starting technical security assessment for lead {lead_id}")
         
-        # Get lead information
-        url, company = sync_get_lead_info(lead_id)
+        # Get lead information using sync database access
+        from src.core.database import SyncSessionLocal
+        
+        with SyncSessionLocal() as session:
+            result = session.execute(select(Lead).where(Lead.id == lead_id))
+            lead = result.scalar_one_or_none()
+            if not lead:
+                raise AssessmentError(f"Lead {lead_id} not found")
+            if not lead.url:
+                raise AssessmentError(f"Lead {lead_id} has no URL for security analysis")
+            url, company = lead.url, lead.company
         
         # PRP-004: Use actual Technical/Security Scraper
         from src.assessments.technical_scraper import assess_technical_security, TechnicalScraperError
         
         try:
-            # Execute technical security assessment with Playwright
-            technical_results = run_async_in_celery(assess_technical_security, url, company, lead_id)
+            # Execute technical security assessment - convert async to sync for Celery
+            import asyncio
+            loop = asyncio.new_event_loop()  
+            asyncio.set_event_loop(loop)
+            try:
+                technical_results = loop.run_until_complete(assess_technical_security(url, company, lead_id))
+            finally:
+                loop.close()
             
             # Calculate security score based on security headers and HTTPS enforcement
             security_headers = technical_results.security_headers
@@ -238,14 +254,13 @@ def security_task(self, lead_id: int) -> Dict[str, Any]:
             
             # Store cost records in database
             if technical_results.cost_records:
-                try:
-                    from src.core.database import SyncSessionLocal
-                    with SyncSessionLocal() as db:
+                async def store_cost_records():
+                    async with get_db() as db:
                         for cost_record in technical_results.cost_records:
                             db.add(cost_record)
-                        db.commit()
-                except Exception as cost_exc:
-                    logger.warning(f"Failed to store cost records for lead {lead_id}: {cost_exc}")
+                        await db.commit()
+                
+                asyncio.run(store_cost_records())
             
         except TechnicalScraperError as scraper_exc:
             # Log specific technical scraper errors
@@ -291,8 +306,13 @@ def security_task(self, lead_id: int) -> Dict[str, Any]:
         }
         
         # Store results in database
-        sync_update_assessment_field(lead_id, 'security_headers', technical_data)
-        sync_update_assessment_field(lead_id, 'security_score', final_security_score)
+        asyncio.run(update_assessment_field(
+            lead_id,
+            'security_headers',
+            technical_data,
+            'security_score',
+            final_security_score
+        ))
         
         task_result = {
             "lead_id": lead_id,
@@ -317,12 +337,13 @@ def security_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'security_headers',
-                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
-            sync_update_assessment_field(lead_id, 'security_score', 0)
+                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()},
+                'security_score',
+                0
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store security error: {db_exc}")
         
@@ -365,8 +386,16 @@ def gbp_task(self, lead_id: int) -> Dict[str, Any]:
     try:
         logger.info(f"Starting GBP assessment for lead {lead_id}")
         
-        # Get lead information using sync function
-        company, address, city, state = sync_get_lead_info(lead_id, fields=['company', 'address', 'city', 'state'])
+        # Get lead information
+        async def get_lead_info():
+            async with get_db() as db:
+                result = await db.execute(select(Lead).where(Lead.id == lead_id))
+                lead = result.scalar_one_or_none()
+                if not lead:
+                    raise AssessmentError(f"Lead {lead_id} not found")
+                return lead.company, lead.address, lead.city, lead.state
+        
+        company, address, city, state = asyncio.run(get_lead_info())
         
         if not company:
             raise AssessmentError(f"Lead {lead_id} has no company name for GBP search")
@@ -375,14 +404,14 @@ def gbp_task(self, lead_id: int) -> Dict[str, Any]:
         from src.assessments.gbp_integration import assess_google_business_profile, GBPIntegrationError
         
         try:
-            # Execute GBP assessment with fuzzy matching and cost tracking using sync wrapper
-            gbp_results = sync_assess_google_business_profile(
+            # Execute GBP assessment with fuzzy matching and cost tracking
+            gbp_results = asyncio.run(assess_google_business_profile(
                 business_name=company,
                 address=address,
                 city=city,
                 state=state,
                 lead_id=lead_id
-            )
+            ))
             
             # Extract GBP data and calculate mobile score based on profile completeness
             gbp_data = gbp_results.get("gbp_data", {})
@@ -413,14 +442,13 @@ def gbp_task(self, lead_id: int) -> Dict[str, Any]:
             
             # Store cost records in database
             if gbp_results.get("cost_records"):
-                try:
-                    from src.core.database import SyncSessionLocal
-                    with SyncSessionLocal() as db:
+                async def store_cost_records():
+                    async with get_db() as db:
                         for cost_record in gbp_results["cost_records"]:
                             db.add(cost_record)
-                        db.commit()
-                except Exception as cost_exc:
-                    logger.warning(f"Failed to store cost records for lead {lead_id}: {cost_exc}")
+                        await db.commit()
+                
+                asyncio.run(store_cost_records())
             
         except GBPIntegrationError as gbp_exc:
             # Log specific GBP integration errors
@@ -431,12 +459,14 @@ def gbp_task(self, lead_id: int) -> Dict[str, Any]:
             logger.error(f"GBP assessment error for lead {lead_id}: {exc}")
             raise AssessmentError(f"GBP assessment failed: {exc}")
         
-        # Prepare data for storage by converting AssessmentCost objects to serializable format
-        gbp_data_for_storage = prepare_assessment_data_for_storage(gbp_results)
-        
-        # Store results in database using sync function
-        sync_update_assessment_field(lead_id, 'gbp_data', gbp_data_for_storage)
-        sync_update_assessment_field(lead_id, 'mobile_score', mobile_score)
+        # Store results in database
+        asyncio.run(update_assessment_field(
+            lead_id,
+            'gbp_data',
+            gbp_results,
+            'mobile_score',
+            mobile_score
+        ))
         
         task_result = {
             "lead_id": lead_id,
@@ -464,12 +494,13 @@ def gbp_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'gbp_data',
-                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
-            sync_update_assessment_field(lead_id, 'mobile_score', 0)
+                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()},
+                'mobile_score',
+                0
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store GBP error: {db_exc}")
         
@@ -522,14 +553,14 @@ def screenshot_task(self, lead_id: int) -> Dict[str, Any]:
                     raise AssessmentError(f"Lead {lead_id} has no URL for screenshot capture")
                 return lead.url, lead.company
         
-        url, company = sync_get_lead_info(lead_id)
+        url, company = url, company = lead.url, lead.company
         
         # PRP-006: Use actual ScreenshotOne integration
         from src.assessments.screenshot_capture import capture_website_screenshots, ScreenshotCaptureError
         
         try:
             # Execute screenshot capture with desktop and mobile viewports
-            screenshot_results = run_async_in_celery(capture_website_screenshots, url, lead_id)
+            screenshot_results = asyncio.run(capture_website_screenshots(url, lead_id))
             
             # Calculate visual score based on screenshot success and quality
             visual_score = 0
@@ -564,14 +595,13 @@ def screenshot_task(self, lead_id: int) -> Dict[str, Any]:
             
             # Store cost records in database
             if screenshot_results.cost_records:
-                try:
-                    from src.core.database import SyncSessionLocal
-                    with SyncSessionLocal() as db:
+                async def store_cost_records():
+                    async with get_db() as db:
                         for cost_record in screenshot_results.cost_records:
                             db.add(cost_record)
-                        db.commit()
-                except Exception as cost_exc:
-                    logger.warning(f"Failed to store cost records for lead {lead_id}: {cost_exc}")
+                        await db.commit()
+                
+                asyncio.run(store_cost_records())
             
         except ScreenshotCaptureError as screenshot_exc:
             # Log specific screenshot capture errors
@@ -593,17 +623,14 @@ def screenshot_task(self, lead_id: int) -> Dict[str, Any]:
             "error_message": screenshot_results.error_message
         }
         
-        # Prepare data for storage by converting AssessmentCost objects to serializable format
-        screenshot_data_for_storage = prepare_assessment_data_for_storage(screenshot_data)
-        
         # Store results in database
-        sync_update_assessment_field(
+        asyncio.run(update_assessment_field(
             lead_id,
             'visual_analysis',
-            screenshot_data_for_storage
+            screenshot_data
             # Note: visual analysis doesn't map to a specific score field in our current schema
             # The overall score will be calculated in aggregate_results
-        )
+        ))
         
         task_result = {
             "lead_id": lead_id,
@@ -630,11 +657,11 @@ def screenshot_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'visual_analysis',
                 {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store screenshot error: {db_exc}")
         
@@ -676,10 +703,18 @@ def semrush_task(self, lead_id: int) -> Dict[str, Any]:
     try:
         logger.info(f"Starting SEMrush assessment for lead {lead_id}")
         
-        # Get lead information using sync function
-        url, company = sync_get_lead_info(lead_id)
-        if not url:
-            raise AssessmentError(f"Lead {lead_id} has no URL for SEMrush analysis")
+        # Get lead information
+        async def get_lead_info():
+            async with get_db() as db:
+                result = await db.execute(select(Lead).where(Lead.id == lead_id))
+                lead = result.scalar_one_or_none()
+                if not lead:
+                    raise AssessmentError(f"Lead {lead_id} not found")
+                if not lead.url:
+                    raise AssessmentError(f"Lead {lead_id} has no URL for SEMrush analysis")
+                return lead.url, lead.company
+        
+        url, company = asyncio.run(get_lead_info())
         
         # Extract domain from URL
         domain = url.replace('https://', '').replace('http://', '').split('/')[0]
@@ -688,8 +723,8 @@ def semrush_task(self, lead_id: int) -> Dict[str, Any]:
         from src.assessments.semrush_integration import assess_semrush_domain, SEMrushIntegrationError
         
         try:
-            # Execute SEMrush domain analysis with proper async handling
-            semrush_results = run_async_in_celery(assess_semrush_domain, domain, lead_id)
+            # Execute SEMrush domain analysis
+            semrush_results = asyncio.run(assess_semrush_domain(domain, lead_id))
             
             # Calculate SEO score based on SEMrush metrics
             seo_score = 0
@@ -720,16 +755,15 @@ def semrush_task(self, lead_id: int) -> Dict[str, Any]:
                 # Minimal score for analysis failure
                 seo_score = 5
             
-            # Store cost records in database if available
+            # Store cost records in database
             if semrush_results.cost_records:
-                try:
-                    from src.core.database import SyncSessionLocal
-                    with SyncSessionLocal() as db:
+                async def store_cost_records():
+                    async with get_db() as db:
                         for cost_record in semrush_results.cost_records:
                             db.add(cost_record)
-                        db.commit()
-                except Exception as cost_exc:
-                    logger.warning(f"Failed to store cost records for lead {lead_id}: {cost_exc}")
+                        await db.commit()
+                
+                asyncio.run(store_cost_records())
             
         except SEMrushIntegrationError as semrush_exc:
             # Log specific SEMrush integration errors
@@ -761,12 +795,14 @@ def semrush_task(self, lead_id: int) -> Dict[str, Any]:
                 "api_cost_units": metrics.api_cost_units
             })
         
-        # Prepare data for storage by converting AssessmentCost objects to serializable format
-        semrush_data_for_storage = prepare_assessment_data_for_storage(semrush_data)
-        
         # Store results in database
-        sync_update_assessment_field(lead_id, 'semrush_data', semrush_data_for_storage)
-        sync_update_assessment_field(lead_id, 'seo_score', seo_score)
+        asyncio.run(update_assessment_field(
+            lead_id,
+            'semrush_data',
+            semrush_data,
+            'seo_score',
+            seo_score
+        ))
         
         task_result = {
             "lead_id": lead_id,
@@ -793,12 +829,13 @@ def semrush_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'semrush_data',
-                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
-            sync_update_assessment_field(lead_id, 'seo_score', 0)
+                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()},
+                'seo_score',
+                0
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store SEMrush error: {db_exc}")
         
@@ -840,42 +877,49 @@ def visual_task(self, lead_id: int) -> Dict[str, Any]:
     try:
         logger.info(f"Starting visual assessment for lead {lead_id}")
         
+        # Get lead information and screenshot URLs
+        async def get_lead_data():
+            async with get_db() as db:
+                result = await db.execute(select(Lead).where(Lead.id == lead_id))
+                lead = result.scalar_one_or_none()
+                if not lead:
+                    raise AssessmentError(f"Lead {lead_id} not found")
+                if not lead.url:
+                    raise AssessmentError(f"Lead {lead_id} has no URL for visual analysis")
+                
+                # Get screenshot assessment for screenshot URLs
+                assessment_result = await db.execute(select(Assessment).where(Assessment.lead_id == lead_id))
+                assessment = assessment_result.scalar_one_or_none()
+                
+                # Extract screenshot URLs from visual_analysis field (PRP-006 data)
+                desktop_screenshot_url = None
+                mobile_screenshot_url = None
+                
+                if assessment and assessment.visual_analysis:
+                    visual_data = assessment.visual_analysis
+                    if isinstance(visual_data, dict):
+                        desktop_data = visual_data.get("desktop_screenshot", {})
+                        mobile_data = visual_data.get("mobile_screenshot", {})
+                        
+                        # Build screenshot URLs (would be actual S3/CDN URLs in production)
+                        if desktop_data.get("s3_url"):
+                            desktop_screenshot_url = desktop_data["s3_url"]
+                        if mobile_data.get("s3_url"):
+                            mobile_screenshot_url = mobile_data["s3_url"]
+                
+                if not desktop_screenshot_url or not mobile_screenshot_url:
+                    raise AssessmentError(f"Screenshots not available for lead {lead_id}. Run screenshot_task first.")
+                
+                return lead.url, lead.company, desktop_screenshot_url, mobile_screenshot_url
         
-        # Get lead information using sync function
-        url, company = sync_get_lead_info(lead_id)
-        if not url:
-            raise AssessmentError(f"Lead {lead_id} has no URL for visual analysis")
-        
-        # Get screenshot URLs from assessment data
-        desktop_url = None
-        mobile_url = None
-        
-        # Get assessment data to check for existing screenshots
-        try:
-            assessment_data, = sync_get_lead_info(lead_id, fields=['assessment_data'])
-            if assessment_data and assessment_data.get('visual_analysis'):
-                visual_data = assessment_data['visual_analysis']
-                if isinstance(visual_data, dict):
-                    desktop_data = visual_data.get("desktop_screenshot", {})
-                    mobile_data = visual_data.get("mobile_screenshot", {})
-                    
-                    if desktop_data.get("s3_url"):
-                        desktop_url = desktop_data["s3_url"]
-                    if mobile_data.get("s3_url"):
-                        mobile_url = mobile_data["s3_url"]
-        except Exception as e:
-            logger.warning(f"Could not retrieve assessment data for lead {lead_id}: {e}")
-            # Continue without existing screenshot URLs
-        
-        if not desktop_url or not mobile_url:
-            raise AssessmentError(f"Screenshots not available for lead {lead_id}. Run screenshot_task first.")
+        url, company, desktop_url, mobile_url = asyncio.run(get_lead_data())
         
         # PRP-008: Use actual Visual Analysis integration
         from src.assessments.visual_analysis import assess_visual_analysis, VisualAnalysisError
         
         try:
             # Execute visual analysis with GPT-4 Vision
-            visual_results = run_async_in_celery(assess_visual_analysis, url, desktop_url, mobile_url, lead_id)
+            visual_results = asyncio.run(assess_visual_analysis(url, desktop_url, mobile_url, lead_id))
             
             # Calculate visual UX score based on rubric evaluations
             visual_score = 0
@@ -918,27 +962,24 @@ def visual_task(self, lead_id: int) -> Dict[str, Any]:
                     "visual_score_0_100": 0
                 }
             
-            # Prepare data for storage by converting AssessmentCost objects to serializable format
-            visual_data_for_storage = prepare_assessment_data_for_storage(visual_data)
-            
             # Update assessment record with visual analysis results
-            sync_update_assessment_field(
-                str(lead_id),
+            asyncio.run(update_assessment_field(
+                lead_id,
                 'visual_analysis',
-                visual_data_for_storage
-            )
-            # Visual score is included in the visual_data dict above - no separate field needed
+                visual_data,
+                'visual_score',
+                visual_score
+            ))
             
-            # Store cost records in database (using sync session)
+            # Store cost records in database
             if visual_results.cost_records:
-                try:
-                    from src.core.database import SyncSessionLocal
-                    with SyncSessionLocal() as db:
+                async def store_cost_records():
+                    async with get_db() as db:
                         for cost_record in visual_results.cost_records:
                             db.add(cost_record)
-                        db.commit()
-                except Exception as e:
-                    logger.warning(f"Failed to store cost records for lead {lead_id}: {e}")
+                        await db.commit()
+                
+                asyncio.run(store_cost_records())
                 
         except VisualAnalysisError as api_exc:
             # Log specific Visual Analysis API errors
@@ -953,7 +994,7 @@ def visual_task(self, lead_id: int) -> Dict[str, Any]:
         task_duration = (datetime.now(timezone.utc) - task_start).total_seconds()
         
         # Update assessment status to completed
-        sync_update_assessment_status(str(lead_id), ASSESSMENT_STATUS.VISUAL_COMPLETED)
+        asyncio.run(update_assessment_status(lead_id, ASSESSMENT_STATUS.VISUAL_COMPLETED))
         
         # Prepare task result
         task_result = {
@@ -981,16 +1022,13 @@ def visual_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'visual_analysis',
-                {
-                    "success": False, 
-                    "error": str(exc), 
-                    "visual_score_0_100": 0,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }
-            )
+                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()},
+                'visual_score',
+                0
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store visual analysis error: {db_exc}")
         
@@ -1079,11 +1117,11 @@ def llm_analysis_task(self, lead_id: int, assessment_results: List[Dict[str, Any
         }
         
         # Store results in database
-        sync_update_assessment_field(
+        asyncio.run(update_assessment_field(
             lead_id,
             'llm_insights',
             llm_insights
-        )
+        ))
         
         task_result = {
             "lead_id": lead_id,
@@ -1107,11 +1145,11 @@ def llm_analysis_task(self, lead_id: int, assessment_results: List[Dict[str, Any
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'llm_insights',
                 {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store LLM analysis error: {db_exc}")
         
@@ -1188,24 +1226,19 @@ def score_calculation_task(self, lead_id: int) -> Dict[str, Any]:
                 
                 return lead_data, assessment_data
         
-        lead_data, assessment_data = run_async_in_celery(get_assessment_data)
+        lead_data, assessment_data = asyncio.run(get_assessment_data())
         
         # PRP-009: Use actual Score Calculator integration
         from src.assessments.score_calculator import calculate_business_score, ScoreCalculatorError
         
         try:
             # Execute business impact score calculation
-            business_score = run_async_in_celery(calculate_business_score, lead_id, assessment_data, lead_data)
+            business_score = asyncio.run(calculate_business_score(lead_id, assessment_data, lead_data))
             
             # Extract priority recommendations from all components
             priority_recommendations = []
-            # Get all available components, handle missing visual_score gracefully
-            components = [business_score.performance_score, business_score.security_score, 
-                         business_score.seo_score, business_score.ux_score]
-            if hasattr(business_score, 'visual_score'):
-                components.append(business_score.visual_score)
-                
-            for component in components:
+            for component in [business_score.performance_score, business_score.security_score, 
+                            business_score.seo_score, business_score.ux_score, business_score.visual_score]:
                 if component.severity in ['P1', 'P2']:  # High priority only
                     priority_recommendations.extend(component.recommendations[:2])  # Top 2 per component
             
@@ -1246,10 +1279,10 @@ def score_calculation_task(self, lead_id: int) -> Dict[str, Any]:
                         "recommendations": business_score.ux_score.recommendations
                     },
                     "visual": {
-                        "raw_score": business_score.visual_score.raw_score if hasattr(business_score, 'visual_score') else 0,
-                        "impact_estimate": business_score.visual_score.impact_estimate if hasattr(business_score, 'visual_score') else 0,
-                        "severity": business_score.visual_score.severity if hasattr(business_score, 'visual_score') else "P3",
-                        "recommendations": business_score.visual_score.recommendations if hasattr(business_score, 'visual_score') else []
+                        "raw_score": business_score.visual_score.raw_score,
+                        "impact_estimate": business_score.visual_score.impact_estimate,
+                        "severity": business_score.visual_score.severity,
+                        "recommendations": business_score.visual_score.recommendations
                     }
                 },
                 "business_factors": {
@@ -1264,8 +1297,13 @@ def score_calculation_task(self, lead_id: int) -> Dict[str, Any]:
             }
             
             # Update assessment record with business score
-            sync_update_assessment_field(lead_id, 'business_score', score_data)
-            sync_update_assessment_field(lead_id, 'overall_score', business_score.overall_score)
+            asyncio.run(update_assessment_field(
+                lead_id,
+                'business_score',
+                score_data,
+                'overall_score',
+                business_score.overall_score
+            ))
             
             # Store cost records (internal calculation - no external API cost)
             cost_record = AssessmentCost.create_scoring_cost(
@@ -1275,13 +1313,12 @@ def score_calculation_task(self, lead_id: int) -> Dict[str, Any]:
                 response_time_ms=business_score.processing_time_ms
             )
             
-            try:
-                from src.core.database import SyncSessionLocal
-                with SyncSessionLocal() as db:
+            async def store_cost_record():
+                async with get_db() as db:
                     db.add(cost_record)
-                    db.commit()
-            except Exception as cost_exc:
-                logger.warning(f"Failed to store cost record for lead {lead_id}: {cost_exc}")
+                    await db.commit()
+            
+            asyncio.run(store_cost_record())
                 
         except ScoreCalculatorError as api_exc:
             # Log specific Score Calculator errors
@@ -1296,16 +1333,15 @@ def score_calculation_task(self, lead_id: int) -> Dict[str, Any]:
         task_duration = (datetime.now(timezone.utc) - task_start).total_seconds()
         
         # Update assessment status to scoring completed
-        sync_update_assessment_status(lead_id, ASSESSMENT_STATUS.SCORING_COMPLETED)
+        asyncio.run(update_assessment_status(lead_id, ASSESSMENT_STATUS.SCORING_COMPLETED))
         
         # Count critical and high priority issues
-        score_components = [business_score.performance_score, business_score.security_score, 
-                           business_score.seo_score, business_score.ux_score]
-        if hasattr(business_score, 'visual_score'):
-            score_components.append(business_score.visual_score)
-            
-        critical_issues = sum(1 for score in score_components if score.severity == 'P1')
-        high_priority_issues = sum(1 for score in score_components if score.severity == 'P2')
+        critical_issues = sum(1 for score in [business_score.performance_score, business_score.security_score, 
+                                            business_score.seo_score, business_score.ux_score, business_score.visual_score]
+                            if score.severity == 'P1')
+        high_priority_issues = sum(1 for score in [business_score.performance_score, business_score.security_score,
+                                                 business_score.seo_score, business_score.ux_score, business_score.visual_score]
+                                 if score.severity == 'P2')
         
         # Prepare task result
         task_result = {
@@ -1336,12 +1372,13 @@ def score_calculation_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'business_score',
-                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
-            sync_update_assessment_field(lead_id, 'overall_score', 0)
+                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()},
+                'overall_score',
+                0
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store score calculation error: {db_exc}")
         
@@ -1416,7 +1453,13 @@ def aggregate_results(self, assessment_results: List[Dict[str, Any]], lead_id: i
         # Update assessment record with final results
         total_duration_ms = int((datetime.now(timezone.utc) - aggregation_start).total_seconds() * 1000)
         
-        sync_update_assessment_status(lead_id, final_status)
+        asyncio.run(update_assessment_status(
+            lead_id,
+            final_status,
+            total_score=total_score,
+            completed_at=datetime.now(timezone.utc),
+            assessment_duration_ms=total_duration_ms
+        ))
         
         aggregation_result = {
             "lead_id": lead_id,
@@ -1443,11 +1486,12 @@ def aggregate_results(self, assessment_results: List[Dict[str, Any]], lead_id: i
         
         # Update assessment status to failed
         try:
-            sync_update_assessment_status(
+            asyncio.run(update_assessment_status(
                 lead_id,
                 ASSESSMENT_STATUS['FAILED'],
-                error_message=str(exc)
-            )
+                error_message=str(exc),
+                completed_at=datetime.now(timezone.utc)
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to update assessment status after aggregation failure: {db_exc}")
         
@@ -1547,14 +1591,14 @@ def content_generation_task(self, lead_id: int) -> Dict[str, Any]:
                 
                 return business_data, assessment_data
         
-        business_data, assessment_data = run_async_in_celery(get_content_data)
+        business_data, assessment_data = asyncio.run(get_content_data())
         
         # PRP-010: Use actual Content Generator integration
         from src.assessments.content_generator import generate_marketing_content, ContentGeneratorError
         
         try:
             # Execute marketing content generation
-            marketing_content = run_async_in_celery(generate_marketing_content, lead_id, business_data, assessment_data)
+            marketing_content = asyncio.run(generate_marketing_content(lead_id, business_data, assessment_data))
             
             # Prepare structured data for database storage
             content_data = {
@@ -1581,11 +1625,11 @@ def content_generation_task(self, lead_id: int) -> Dict[str, Any]:
             }
             
             # Update assessment record with marketing content
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'marketing_content',
                 content_data
-            )
+            ))
             
             # Store cost records (OpenAI API cost)
             cost_record = AssessmentCost.create_content_cost(
@@ -1595,13 +1639,12 @@ def content_generation_task(self, lead_id: int) -> Dict[str, Any]:
                 response_time_ms=marketing_content.processing_time_ms
             )
             
-            try:
-                from src.core.database import SyncSessionLocal
-                with SyncSessionLocal() as db:
+            async def store_cost_record():
+                async with get_db() as db:
                     db.add(cost_record)
-                    db.commit()
-            except Exception as cost_exc:
-                logger.warning(f"Failed to store cost record for lead {lead_id}: {cost_exc}")
+                    await db.commit()
+            
+            asyncio.run(store_cost_record())
                 
         except ContentGeneratorError as api_exc:
             # Log specific Content Generator errors
@@ -1616,7 +1659,7 @@ def content_generation_task(self, lead_id: int) -> Dict[str, Any]:
         task_duration = (datetime.now(timezone.utc) - task_start).total_seconds()
         
         # Update assessment status to content generation completed
-        sync_update_assessment_status(lead_id, ASSESSMENT_STATUS.CONTENT_COMPLETED)
+        asyncio.run(update_assessment_status(lead_id, ASSESSMENT_STATUS.CONTENT_COMPLETED))
         
         # Prepare task result
         task_result = {
@@ -1646,11 +1689,11 @@ def content_generation_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'marketing_content',
                 {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store content generation error: {db_exc}")
         
@@ -1713,14 +1756,14 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
                     'contact_name': getattr(lead, 'contact_name', None)
                 }
         
-        lead_data = run_async_in_celery(get_lead_data)
+        lead_data = asyncio.run(get_lead_data())
         
         # PRP-011: Use actual Assessment Orchestrator
         from src.assessments.assessment_orchestrator import execute_full_assessment, AssessmentOrchestratorError
         
         try:
             # Execute complete assessment workflow
-            execution_result = run_async_in_celery(execute_full_assessment, lead_id, lead_data)
+            execution_result = asyncio.run(execute_full_assessment(lead_id, lead_data))
             
             # Extract summary metrics
             success_rate = execution_result.success_rate
@@ -1759,11 +1802,11 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
                 }
             }
             
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'orchestration_result',
                 orchestration_data
-            )
+            ))
             
             # Store orchestration cost record
             cost_record = AssessmentCost.create_orchestration_cost(
@@ -1773,13 +1816,12 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
                 response_time_ms=execution_result.total_duration_ms
             )
             
-            try:
-                from src.core.database import SyncSessionLocal
-                with SyncSessionLocal() as db:
+            async def store_cost_record():
+                async with get_db() as db:
                     db.add(cost_record)
-                    db.commit()
-            except Exception as cost_exc:
-                logger.warning(f"Failed to store cost record for lead {lead_id}: {cost_exc}")
+                    await db.commit()
+            
+            asyncio.run(store_cost_record())
                 
         except AssessmentOrchestratorError as orchestrator_exc:
             # Log specific orchestrator errors
@@ -1795,7 +1837,7 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Update assessment status based on orchestration result
         final_status = ASSESSMENT_STATUS.COMPLETED if success_rate >= 0.8 else ASSESSMENT_STATUS.PARTIAL if success_rate >= 0.5 else ASSESSMENT_STATUS.FAILED
-        sync_update_assessment_status(lead_id, final_status)
+        asyncio.run(update_assessment_status(lead_id, final_status))
         
         # Prepare task result
         task_result = {
@@ -1826,11 +1868,11 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'orchestration_result',
                 {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store orchestration error: {db_exc}")
         
@@ -1881,14 +1923,14 @@ def report_generation_task(self, lead_id: int) -> Dict[str, Any]:
                     raise AssessmentError(f"Lead {lead_id} not found")
                 return lead
         
-        lead = run_async_in_celery(get_lead_data)
+        lead = asyncio.run(get_lead_data())
         
         # PRP-011: Use actual Report Builder integration
         from src.reports.builder import generate_assessment_report, ReportBuilderError
         
         try:
             # Execute report generation
-            report_result = run_async_in_celery(generate_assessment_report, lead_id)
+            report_result = asyncio.run(generate_assessment_report(lead_id))
             
             # Prepare structured data for database storage
             report_data = {
@@ -1908,11 +1950,11 @@ def report_generation_task(self, lead_id: int) -> Dict[str, Any]:
             }
             
             # Update assessment record with report data
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'report_data',
                 report_data
-            )
+            ))
             
             # Store cost record (internal generation - no external API cost)
             cost_record = AssessmentCost.create_report_cost(
@@ -1922,13 +1964,12 @@ def report_generation_task(self, lead_id: int) -> Dict[str, Any]:
                 response_time_ms=report_result.generation_time_ms
             )
             
-            try:
-                from src.core.database import SyncSessionLocal
-                with SyncSessionLocal() as db:
+            async def store_cost_record():
+                async with get_db() as db:
                     db.add(cost_record)
-                    db.commit()
-            except Exception as cost_exc:
-                logger.warning(f"Failed to store cost record for lead {lead_id}: {cost_exc}")
+                    await db.commit()
+            
+            asyncio.run(store_cost_record())
                 
         except ReportBuilderError as report_exc:
             logger.error(f"Report Builder error for lead {lead_id}: {report_exc}")
@@ -1963,11 +2004,11 @@ def report_generation_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'report_data',
                 {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store report generation error: {db_exc}")
         
@@ -2020,14 +2061,14 @@ def email_formatting_task(self, lead_id: int) -> Dict[str, Any]:
                 
                 return assessment.marketing_content
         
-        content_data = run_async_in_celery(get_content_data)
+        content_data = asyncio.run(get_content_data())
         
         # PRP-012: Use actual Email Formatter integration
         from src.email.formatter import format_business_email, EmailFormattingError
         
         try:
             # Execute email formatting
-            formatted_email = run_async_in_celery(format_business_email, lead_id, content_data)
+            formatted_email = asyncio.run(format_business_email(lead_id, content_data))
             
             # Prepare structured data for database storage
             email_data = {
@@ -2047,11 +2088,11 @@ def email_formatting_task(self, lead_id: int) -> Dict[str, Any]:
             }
             
             # Update assessment record with email data
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'formatted_email',
                 email_data
-            )
+            ))
             
             # Store cost record (internal formatting - no external API cost)
             cost_record = AssessmentCost.create_email_cost(
@@ -2061,13 +2102,12 @@ def email_formatting_task(self, lead_id: int) -> Dict[str, Any]:
                 response_time_ms=int((datetime.now(timezone.utc) - task_start).total_seconds() * 1000)
             )
             
-            try:
-                from src.core.database import SyncSessionLocal
-                with SyncSessionLocal() as db:
+            async def store_cost_record():
+                async with get_db() as db:
                     db.add(cost_record)
-                    db.commit()
-            except Exception as cost_exc:
-                logger.warning(f"Failed to store cost record for lead {lead_id}: {cost_exc}")
+                    await db.commit()
+            
+            asyncio.run(store_cost_record())
                 
         except EmailFormattingError as email_exc:
             logger.error(f"Email Formatter error for lead {lead_id}: {email_exc}")
@@ -2102,11 +2142,11 @@ def email_formatting_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'formatted_email',
                 {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store email formatting error: {db_exc}")
         
@@ -2165,14 +2205,14 @@ def testing_dashboard_task(self, lead_id: int) -> Dict[str, Any]:
                     'location': f"{getattr(lead, 'state', '')}, {getattr(lead, 'county', '')}"
                 }
         
-        lead_data = run_async_in_celery(get_lead_data)
+        lead_data = asyncio.run(get_lead_data())
         
         # PRP-013: Use actual Testing Dashboard integration
         from src.testing.dashboard import run_full_pipeline_test, TestingDashboardError
         
         try:
             # Execute complete pipeline test
-            test_result = run_async_in_celery(run_full_pipeline_test, lead_data, user_id=1)
+            test_result = asyncio.run(run_full_pipeline_test(lead_data, user_id=1))
             
             # Prepare structured data for database storage
             testing_data = {
@@ -2201,11 +2241,11 @@ def testing_dashboard_task(self, lead_id: int) -> Dict[str, Any]:
             }
             
             # Update assessment record with testing data
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'testing_results',
                 testing_data
-            )
+            ))
             
             # Store cost record (internal testing - no external API cost)
             cost_record = AssessmentCost.create_dashboard_cost(
@@ -2215,13 +2255,12 @@ def testing_dashboard_task(self, lead_id: int) -> Dict[str, Any]:
                 response_time_ms=test_result.execution_time_ms
             )
             
-            try:
-                from src.core.database import SyncSessionLocal
-                with SyncSessionLocal() as db:
+            async def store_cost_record():
+                async with get_db() as db:
                     db.add(cost_record)
-                    db.commit()
-            except Exception as cost_exc:
-                logger.warning(f"Failed to store cost record for lead {lead_id}: {cost_exc}")
+                    await db.commit()
+            
+            asyncio.run(store_cost_record())
                 
         except TestingDashboardError as testing_exc:
             logger.error(f"Testing Dashboard error for lead {lead_id}: {testing_exc}")
@@ -2256,11 +2295,11 @@ def testing_dashboard_task(self, lead_id: int) -> Dict[str, Any]:
         
         # Store error in database
         try:
-            sync_update_assessment_field(
+            asyncio.run(update_assessment_field(
                 lead_id,
                 'testing_results',
                 {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
+            ))
         except Exception as db_exc:
             logger.error(f"Failed to store testing dashboard error: {db_exc}")
         

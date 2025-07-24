@@ -91,8 +91,9 @@ async def health_check():
     try:
         # Test database connection
         from src.core.database import AsyncSessionLocal
+        from sqlalchemy import text
         async with AsyncSessionLocal() as session:
-            await session.execute("SELECT 1")
+            await session.execute(text("SELECT 1"))
         
         db_status = "connected"
         cache_status = "not_configured"

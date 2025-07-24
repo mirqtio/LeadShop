@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Assessment Frontend</title>
+</head>
+<body>
+    <h1>Test Assessment Results</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Test the assessment status endpoint directly
+        async function testAssessment() {
+            try {
+                // First submit an assessment
+                console.log('Submitting assessment...');
+                const submitResponse = await fetch('http://localhost:8001/api/v1/simple-assessment/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: 'https://example.com',
+                        business_name: 'Example Company'
+                    })
+                });
+                
+                const submitData = await submitResponse.json();
+                console.log('Submit response:', submitData);
+                
+                if (submitData.task_id) {
+                    // Wait a moment for processing
+                    setTimeout(async () => {
+                        console.log('Checking status...');
+                        const statusResponse = await fetch(`http://localhost:8001/api/v1/simple-assessment/status/${submitData.task_id}`);
+                        const statusData = await statusResponse.json();
+                        console.log('Status response:', statusData);
+                        
+                        document.getElementById('results').innerHTML = `
+                            <h2>Task ID: ${submitData.task_id}</h2>
+                            <h3>Status: ${statusData.status}</h3>
+                            <pre>${JSON.stringify(statusData, null, 2)}</pre>
+                        `;
+                    }, 10000); // Wait 10 seconds for processing
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('results').innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Run test when page loads
+        testAssessment();
+    </script>
+</body>
+</html>

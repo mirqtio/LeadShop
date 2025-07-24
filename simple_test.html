@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Assessment Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        form {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        input[type="url"] {
+            width: 300px;
+            padding: 8px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            background: #007cba;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #ccc;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .status.pending { background: #fff3cd; }
+        .status.completed { background: #d4edda; }
+        .status.error { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>Simple Assessment Test</h1>
+    
+    <form id="assessmentForm">
+        <label for="url">Website URL:</label>
+        <input type="url" id="url" placeholder="https://example.com" required>
+        <button type="submit" id="submitBtn">Run Assessment</button>
+    </form>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <div id="results" style="display: none;">
+        <h2>Assessment Results</h2>
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const form = document.getElementById('assessmentForm');
+        const urlInput = document.getElementById('url');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const resultsBody = document.getElementById('resultsBody');
+        
+        let currentTaskId = null;
+        let statusInterval = null;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = urlInput.value.trim();
+            if (!url) return;
+            
+            // Reset UI
+            submitBtn.disabled = true;
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status pending';
+            statusDiv.textContent = 'Submitting assessment...';
+            resultsDiv.style.display = 'none';
+            
+            try {
+                // Submit assessment
+                const response = await fetch('/api/v1/simple-assessment/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: url,
+                        business_name: 'Test Business'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                currentTaskId = data.task_id;
+                
+                statusDiv.textContent = `Assessment submitted (Task: ${currentTaskId}). Checking status...`;
+                
+                // Start polling for status
+                startStatusPolling();
+                
+            } catch (error) {
+                console.error('Error submitting assessment:', error);
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `Error: ${error.message}`;
+                submitBtn.disabled = false;
+            }
+        });
+        
+        function startStatusPolling() {
+            if (statusInterval) clearInterval(statusInterval);
+            
+            statusInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/v1/simple-assessment/status/${currentTaskId}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Status update:', data);
+                    
+                    if (data.status === 'completed') {
+                        clearInterval(statusInterval);
+                        statusDiv.className = 'status completed';
+                        statusDiv.textContent = 'Assessment completed!';
+                        displayResults(data.results);
+                        submitBtn.disabled = false;
+                    } else if (data.status === 'failed') {
+                        clearInterval(statusInterval);
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = `Assessment failed: ${data.error || 'Unknown error'}`;
+                        submitBtn.disabled = false;
+                    } else {
+                        statusDiv.textContent = `Assessment ${data.status}... (Task: ${currentTaskId})`;
+                    }
+                    
+                } catch (error) {
+                    console.error('Error checking status:', error);
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `Error checking status: ${error.message}`;
+                    clearInterval(statusInterval);
+                    submitBtn.disabled = false;
+                }
+            }, 2000); // Check every 2 seconds
+        }
+        
+        function displayResults(results) {
+            if (!results) {
+                resultsBody.innerHTML = '<tr><td colspan="4">No results available</td></tr>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            let html = '';
+            
+            // Display each component's results
+            Object.entries(results).forEach(([component, data]) => {
+                const score = data.data?.score || 'N/A';
+                const status = data.status || 'Unknown';
+                const description = data.description || data.component || component;
+                
+                html += `
+                    <tr>
+                        <td>${component.toUpperCase()}</td>
+                        <td>${score}</td>
+                        <td>${status}</td>
+                        <td>${description}</td>
+                    </tr>
+                `;
+            });
+            
+            if (html === '') {
+                html = '<tr><td colspan="4">No assessment data found</td></tr>';
+            }
+            
+            resultsBody.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

@@ -4,8 +4,8 @@ Implements async SQLAlchemy setup with PostgreSQL for PRP-001 Lead Data Model
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import DateTime, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
+from sqlalchemy import DateTime, func, create_engine
 from typing import AsyncGenerator
 import logging
 
@@ -27,6 +27,26 @@ engine = create_async_engine(
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
+    autocommit=False,
+)
+
+# Create sync engine for Celery workers (convert async URL to sync)
+sync_database_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+sync_engine = create_engine(
+    sync_database_url,
+    echo=settings.DATABASE_ECHO,
+    pool_size=settings.DATABASE_POOL_SIZE,
+    max_overflow=0,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
+
+# Create sync session factory for Celery workers
+SyncSessionLocal = sessionmaker(
+    sync_engine,
+    class_=Session,
     expire_on_commit=False,
     autoflush=False,
     autocommit=False,

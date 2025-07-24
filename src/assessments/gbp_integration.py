@@ -404,8 +404,10 @@ async def assess_google_business_profile(business_name: str, address: Optional[s
     cost_records = []
     
     try:
-        if not settings.GOOGLE_PLACES_API_KEY:
-            raise GBPIntegrationError("Google Places API key not configured")
+        # Check for any available Google API key
+        api_key = getattr(settings, 'GOOGLE_PLACES_API_KEY', None) or getattr(settings, 'GOOGLE_PAGESPEED_API_KEY', None)
+        if not api_key:
+            raise GBPIntegrationError("Google API key not configured - set GOOGLE_PLACES_API_KEY or GOOGLE_PAGESPEED_API_KEY")
         
         # Create cost tracking record
         cost_record = AssessmentCost.create_gbp_cost(

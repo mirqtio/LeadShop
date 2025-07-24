@@ -15,6 +15,46 @@ celery_app.config_from_object('src.core.celery_config')
 # Manually include tasks to avoid circular imports
 # Note: We cannot use autodiscover_tasks here due to circular import issues
 
+# Import all models to register them with SQLAlchemy
+try:
+    from src.models import lead, assessment_cost  # noqa
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("SQLAlchemy models imported and registered successfully")
+except ImportError as e:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Failed to import some models: {e}")
+
+# Import assessment tasks to register them with Celery  
+try:    
+    # Import assessment tasks (avoid orchestrator due to circular import)
+    from src.assessment.tasks import (
+        pagespeed_task,
+        security_task,
+        gbp_task,
+        semrush_task,
+        visual_task,
+        llm_analysis_task,
+        aggregate_results,
+        health_check,
+        cleanup_expired_results,
+        monitor_assessment_queues
+    )
+    
+    # Note: coordinate_assessment is registered when orchestrator module is imported
+    
+    # Log successful task registration
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("Assessment tasks imported and registered successfully")
+    
+except ImportError as e:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Failed to import some Celery tasks: {e}")
+    # Continue anyway - some tasks might be available
+
 # Add periodic tasks for health monitoring
 from celery.schedules import crontab
 

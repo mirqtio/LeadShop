@@ -30,14 +30,17 @@ worker_max_memory_per_child = 524288  # 512MB limit per PRP-002 requirements
 
 # Task routing configuration
 task_routes = {
-    'assessment_orchestrator.coordinate_assessment': {'queue': 'high_priority'},
-    'assessment_orchestrator.pagespeed_task': {'queue': 'assessment'},
-    'assessment_orchestrator.security_task': {'queue': 'assessment'},
-    'assessment_orchestrator.gbp_task': {'queue': 'assessment'},
-    'assessment_orchestrator.semrush_task': {'queue': 'assessment'},
-    'assessment_orchestrator.visual_task': {'queue': 'assessment'},
-    'assessment_orchestrator.llm_analysis_task': {'queue': 'llm'},
-    'assessment_orchestrator.aggregate_results': {'queue': 'high_priority'},
+    'src.assessment.orchestrator.coordinate_assessment': {'queue': 'high_priority'},
+    'src.assessment.tasks.pagespeed_task': {'queue': 'assessment'},
+    'src.assessment.tasks.security_task': {'queue': 'assessment'},
+    'src.assessment.tasks.gbp_task': {'queue': 'assessment'},
+    'src.assessment.tasks.semrush_task': {'queue': 'assessment'},
+    'src.assessment.tasks.visual_task': {'queue': 'assessment'},
+    'src.assessment.tasks.llm_analysis_task': {'queue': 'llm'},
+    'src.assessment.tasks.aggregate_results': {'queue': 'high_priority'},
+    'src.assessment.tasks.health_check': {'queue': 'high_priority'},
+    'src.assessment.tasks.cleanup_expired_results': {'queue': 'default'},
+    'src.assessment.tasks.monitor_assessment_queues': {'queue': 'high_priority'},
 }
 
 # Queue definitions

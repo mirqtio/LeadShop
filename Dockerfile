@@ -4,6 +4,7 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/app/.cache/ms-playwright
 
 # Set work directory
 WORKDIR /app
@@ -27,16 +28,25 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (for PRP-004 security scraper)
-RUN playwright install --with-deps chromium
-
 # Copy project
 COPY . /app/
 
-# Create non-root user
-RUN groupadd -r app && useradd -r -g app app
+# Create non-root user with home directory
+RUN groupadd -r app && useradd -r -g app -m app
 RUN chown -R app:app /app
+
+# Install Playwright system dependencies as root first
+RUN playwright install-deps chromium
+
+# Switch to app user and install browsers in app user's home directory
 USER app
+
+# Install Playwright browsers as app user (for PRP-004 security scraper)
+# This ensures browsers are accessible by the worker processes
+RUN playwright install chromium
+
+# Verify browser installation
+RUN ls -la /home/app/.cache/ms-playwright/ || echo "Browser path will be created during installation"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
