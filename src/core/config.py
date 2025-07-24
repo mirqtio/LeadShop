@@ -39,8 +39,9 @@ class Settings(BaseSettings):
     # External API Keys
     GOOGLE_API_KEY: Optional[str] = Field(default=None, description="Google API key")
     GOOGLE_PAGESPEED_API_KEY: Optional[str] = Field(default=None, description="Google PageSpeed API key")
+    GOOGLE_PLACES_API_KEY: Optional[str] = Field(default=None, description="Google Places API key for GBP integration")
     SEMRUSH_API_KEY: Optional[str] = Field(default=None, description="SEMrush API key")
-    SCREENSHOTONE_KEY: Optional[str] = Field(default=None, description="ScreenshotOne API key")
+    SCREENSHOTONE_API_KEY: Optional[str] = Field(default=None, description="ScreenshotOne API key for screenshot capture")
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API key")
     ANTHROPIC_API_KEY: Optional[str] = Field(default=None, description="Anthropic API key")
     

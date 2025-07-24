@@ -67,7 +67,7 @@ async def create_tables():
     """Create all database tables"""
     try:
         # Import all models to ensure they're registered
-        from src.models import lead, assessment, report  # noqa
+        from src.models import lead, assessment_cost  # noqa
         
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)

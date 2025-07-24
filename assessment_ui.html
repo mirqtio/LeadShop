@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeadShop - Website Assessment</title>
+    <!-- Google OAuth 2.0 -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        /* Reset and base styles using Anthracite design system */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            /* Colors from design tokens */
+            --anthracite: #0a0a0a;
+            --white: #ffffff;
+            --synthesis-blue: #0066ff;
+            --synthesis-blue-hover: #0052cc;
+            --critical: #dc2626;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --neutral: #6b7280;
+            --light-bg: #f8f9fa;
+            --border: #e9ecef;
+            --dark-text: #2d3748;
+            
+            /* Typography */
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-display: 72px;
+            --font-h1: 48px;
+            --font-h2: 36px;
+            --font-h3: 28px;
+            --font-h4: 20px;
+            --font-body-large: 18px;
+            --font-body: 16px;
+            --font-body-small: 14px;
+            --font-caption: 12px;
+            
+            /* Spacing */
+            --space-xs: 8px;
+            --space-sm: 16px;
+            --space-md: 24px;
+            --space-lg: 32px;
+            --space-xl: 48px;
+            --space-2xl: 64px;
+            --space-3xl: 80px;
+            
+            /* Animation */
+            --duration-micro: 150ms;
+            --duration-standard: 200ms;
+            --duration-page: 300ms;
+            --easing-out: ease-out;
+            --easing-in-out: ease-in-out;
+        }
+        
+        body {
+            font-family: var(--font-family);
+            background: var(--light-bg);
+            color: var(--dark-text);
+            line-height: 1.6;
+            font-size: var(--font-body);
+        }
+        
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-xl);
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--anthracite) 0%, #1a1a1a 100%);
+            color: var(--white);
+            padding: var(--space-3xl) var(--space-xl);
+            margin: calc(-1 * var(--space-xl)) calc(-1 * var(--space-xl)) var(--space-2xl);
+            border-radius: 16px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: var(--font-h1);
+            font-weight: 300;
+            margin-bottom: var(--space-sm);
+            letter-spacing: -0.02em;
+        }
+        
+        .header p {
+            font-size: var(--font-body-large);
+            opacity: 0.8;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        /* Assessment Form */
+        .assessment-form {
+            background: var(--white);
+            padding: var(--space-xl);
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+            border: 1px solid var(--border);
+            margin-bottom: var(--space-xl);
+        }
+        
+        .form-group {
+            margin-bottom: var(--space-md);
+        }
+        
+        .form-label {
+            display: block;
+            font-size: var(--font-body-small);
+            font-weight: 600;
+            color: var(--dark-text);
+            margin-bottom: var(--space-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: var(--space-sm) var(--space-md);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: var(--font-body);
+            font-family: var(--font-family);
+            transition: border-color var(--duration-standard) var(--easing-out);
+            background: var(--white);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--synthesis-blue);
+            box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
+        }
+        
+        .form-input::placeholder {
+            color: var(--neutral);
+        }
+        
+        /* URL Input specific styling */
+        .url-input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        .url-input {
+            flex: 1;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: var(--font-body-small);
+        }
+        
+        /* Button */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-sm) var(--space-md);
+            border-radius: 8px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all var(--duration-standard) var(--easing-out);
+            border: none;
+            cursor: pointer;
+            font-size: var(--font-body);
+            font-family: var(--font-family);
+            min-height: 48px;
+        }
+        
+        .btn-primary {
+            background: var(--synthesis-blue);
+            color: var(--white);
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: var(--synthesis-blue-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,102,255,0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: var(--neutral);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-large {
+            padding: var(--space-md) var(--space-lg);
+            font-size: var(--font-body-large);
+            min-height: 56px;
+        }
+        
+        /* Loading States */
+        .loading {
+            display: none;
+            align-items: center;
+            gap: var(--space-xs);
+        }
+        
+        .loading.show {
+            display: flex;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--white);
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Status Messages */
+        .status-message {
+            padding: var(--space-sm) var(--space-md);
+            border-radius: 8px;
+            margin-top: var(--space-sm);
+            font-size: var(--font-body-small);
+            display: none;
+        }
+        
+        .status-message.show {
+            display: block;
+        }
+        
+        .status-error {
+            background: #fee2e2;
+            color: var(--critical);
+            border: 1px solid #fecaca;
+        }
+        
+        .status-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        
+        /* Results Section */
+        .results-section {
+            display: none;
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        
+        .results-section.show {
+            display: block;
+        }
+        
+        .results-header {
+            background: linear-gradient(135deg, var(--synthesis-blue) 0%, var(--synthesis-blue-hover) 100%);
+            color: var(--white);
+            padding: var(--space-lg);
+            text-align: center;
+        }
+        
+        .results-header h2 {
+            font-size: var(--font-h3);
+            font-weight: 500;
+            margin-bottom: var(--space-xs);
+        }
+        
+        .results-url {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: var(--font-body-small);
+            opacity: 0.9;
+        }
+        
+        /* Overall Score */
+        .overall-score {
+            text-align: center;
+            padding: var(--space-xl);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .score-display {
+            font-size: var(--font-display);
+            font-weight: 300;
+            line-height: 0.9;
+            position: relative;
+            display: inline-block;
+            margin-bottom: var(--space-md);
+        }
+        
+        .score-label {
+            font-size: var(--font-body);
+            color: var(--neutral);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 500;
+        }
+        
+        /* Assessment Table */
+        .assessment-table {
+            overflow-x: auto;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-table th {
+            background: var(--light-bg);
+            padding: var(--space-md);
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark-text);
+            font-size: var(--font-body-small);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        .data-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        
+        .data-table tr:hover {
+            background: #fafbfc;
+        }
+        
+        /* Metric Categories */
+        .category-header {
+            background: var(--anthracite) !important;
+            color: var(--white) !important;
+            font-size: var(--font-body) !important;
+            font-weight: 500 !important;
+            text-transform: none !important;
+            letter-spacing: normal !important;
+        }
+        
+        .category-row td {
+            background: #f8f9fa;
+            font-weight: 500;
+            color: var(--dark-text);
+        }
+        
+        /* Value styling */
+        .metric-value {
+            font-weight: 600;
+            font-size: var(--font-body);
+        }
+        
+        .metric-good {
+            color: var(--success);
+        }
+        
+        .metric-warning {
+            color: var(--warning);
+        }
+        
+        .metric-critical {
+            color: var(--critical);
+        }
+        
+        .metric-score {
+            color: var(--synthesis-blue);
+            font-size: var(--font-h4);
+        }
+        
+        /* Status badges */
+        .status-badge {
+            display: inline-block;
+            padding: 4px var(--space-xs);
+            border-radius: 4px;
+            font-size: var(--font-caption);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .status-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status-critical {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        /* Cost display */
+        .cost-display {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            color: var(--neutral);
+            font-size: var(--font-body-small);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--space-md);
+            }
+            
+            .header {
+                padding: var(--space-xl) var(--space-md);
+                margin: calc(-1 * var(--space-md)) calc(-1 * var(--space-md)) var(--space-xl);
+            }
+            
+            .header h1 {
+                font-size: var(--font-h2);
+            }
+            
+            .assessment-form,
+            .results-section {
+                padding: var(--space-md);
+            }
+            
+            .url-input-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+            
+            .score-display {
+                font-size: 64px;
+            }
+            
+            .data-table {
+                font-size: var(--font-body-small);
+            }
+            
+            .data-table th,
+            .data-table td {
+                padding: var(--space-xs) var(--space-sm);
+            }
+        }
+        
+        /* Component animation */
+        .fade-in {
+            animation: fadeIn var(--duration-page) var(--easing-out);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Website Assessment</h1>
+            <p>Get comprehensive website analysis with business impact metrics. Drop in any URL to see performance, security, SEO, and conversion optimization insights.</p>
+        </header>
+        
+        <!-- Authentication Section -->
+        <section class="assessment-form" id="authSection">
+            <div style="text-align: center; padding: var(--space-xl);">
+                <h3 style="margin-bottom: var(--space-md); color: var(--dark-text);">Sign in to start assessment</h3>
+                <p style="margin-bottom: var(--space-lg); color: var(--neutral);">Sign in with Google to access website assessment tools</p>
+                <div id="g_id_onload"
+                     data-client_id=""
+                     data-context="signin"
+                     data-ux_mode="popup"
+                     data-callback="handleGoogleAuth">
+                </div>
+                <div class="g_id_signin" 
+                     data-type="standard"
+                     data-shape="rectangular"
+                     data-theme="outline"
+                     data-text="signin_with"
+                     data-size="large"
+                     data-logo_alignment="left">
+                </div>
+            </div>
+        </section>
+
+        <!-- Assessment Form -->
+        <section class="assessment-form" id="assessmentFormSection" style="display: none;">
+            <div class="user-info" id="userInfo" style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); padding: var(--space-sm); background: var(--light-bg); border-radius: 8px;">
+                <img id="userPicture" src="" alt="User" style="width: 32px; height: 32px; border-radius: 50%;">
+                <div>
+                    <div id="userName" style="font-weight: 500; font-size: var(--font-body-small);"></div>
+                    <div id="userEmail" style="font-size: var(--font-caption); color: var(--neutral);"></div>
+                </div>
+                <button id="signOutBtn" style="margin-left: auto; background: none; border: none; color: var(--neutral); cursor: pointer; font-size: var(--font-body-small);">Sign Out</button>
+            </div>
+
+            <form id="assessmentForm">
+                <div class="form-group">
+                    <label class="form-label" for="websiteUrl">Website URL</label>
+                    <div class="url-input-container">
+                        <input 
+                            type="url" 
+                            id="websiteUrl" 
+                            class="form-input url-input" 
+                            placeholder="https://example.com"
+                            required
+                        >
+                        <button type="submit" class="btn btn-primary btn-large" id="analyzeBtn">
+                            <span class="btn-text">Analyze Website</span>
+                            <span class="loading">
+                                <span class="spinner"></span>
+                                Analyzing...
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="businessName">Business Name (Optional)</label>
+                    <input 
+                        type="text" 
+                        id="businessName" 
+                        class="form-input" 
+                        placeholder="Acme Corporation"
+                    >
+                </div>
+                
+                <div class="status-message status-error" id="errorMessage"></div>
+                <div class="status-message status-success" id="successMessage"></div>
+            </form>
+        </section>
+        
+        <!-- Results Section -->
+        <section class="results-section" id="resultsSection">
+            <div class="results-header">
+                <h2>Assessment Results</h2>
+                <div class="results-url" id="resultsUrl"></div>
+            </div>
+            
+            <div class="overall-score">
+                <div class="score-display" id="overallScore">--</div>
+                <div class="score-label">Overall Score</div>
+            </div>
+            
+            <div class="assessment-table">
+                <table class="data-table" id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Value</th>
+                            <th>Status</th>
+                            <th>Impact</th>
+                            <th>Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTableBody">
+                        <!-- Results will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Global configuration
+        let CONFIG = {};
+        let currentUser = null;
+        let accessToken = null;
+        
+        // DOM elements
+        const authSection = document.getElementById('authSection');
+        const assessmentFormSection = document.getElementById('assessmentFormSection');
+        const form = document.getElementById('assessmentForm');
+        const urlInput = document.getElementById('websiteUrl');
+        const businessNameInput = document.getElementById('businessName');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const btnText = analyzeBtn.querySelector('.btn-text');
+        const loading = analyzeBtn.querySelector('.loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsUrl = document.getElementById('resultsUrl');
+        const overallScore = document.getElementById('overallScore');
+        const resultsTableBody = document.getElementById('resultsTableBody');
+        const userInfo = document.getElementById('userInfo');
+        const userPicture = document.getElementById('userPicture');
+        const userName = document.getElementById('userName');
+        const userEmail = document.getElementById('userEmail');
+        const signOutBtn = document.getElementById('signOutBtn');
+        
+        // Initialize the app
+        async function initializeApp() {
+            try {
+                // Get configuration from backend
+                const response = await fetch('/api/v1/assessment/config');
+                CONFIG = await response.json();
+                
+                // Set Google Client ID
+                document.getElementById('g_id_onload').setAttribute('data-client_id', CONFIG.google_client_id);
+                
+                // Check if user is already logged in
+                const savedToken = localStorage.getItem('access_token');
+                const savedUser = localStorage.getItem('user_data');
+                
+                if (savedToken && savedUser) {
+                    accessToken = savedToken;
+                    currentUser = JSON.parse(savedUser);
+                    showAssessmentForm();
+                }
+                
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                showMessage(errorMessage, 'Failed to initialize application');
+            }
+        }
+        
+        // Google OAuth callback
+        async function handleGoogleAuth(response) {
+            try {
+                console.log('Google auth response received');
+                
+                // Send Google token to backend for verification
+                const authResponse = await fetch(CONFIG.auth_endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        google_token: response.credential
+                    })
+                });
+                
+                if (!authResponse.ok) {
+                    throw new Error('Authentication failed');
+                }
+                
+                const authData = await authResponse.json();
+                
+                // Store authentication data
+                accessToken = authData.access_token;
+                currentUser = authData.user;
+                
+                localStorage.setItem('access_token', accessToken);
+                localStorage.setItem('user_data', JSON.stringify(currentUser));
+                
+                showAssessmentForm();
+                showMessage(successMessage, `Welcome, ${currentUser.name}!`);
+                
+            } catch (error) {
+                console.error('Authentication failed:', error);
+                showMessage(errorMessage, 'Authentication failed. Please try again.');
+            }
+        }
+        
+        // Show assessment form after authentication
+        function showAssessmentForm() {
+            authSection.style.display = 'none';
+            assessmentFormSection.style.display = 'block';
+            
+            // Update user info
+            if (currentUser) {
+                userPicture.src = currentUser.picture || '';
+                userName.textContent = currentUser.name || '';
+                userEmail.textContent = currentUser.email || '';
+            }
+        }
+        
+        // Sign out function
+        function signOut() {
+            accessToken = null;
+            currentUser = null;
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_data');
+            
+            authSection.style.display = 'block';
+            assessmentFormSection.style.display = 'none';
+            resultsSection.classList.remove('show');
+            
+            showMessage(successMessage, 'Signed out successfully');
+        }
+        
+        // Execute assessment with real API
+        async function executeAssessment(url, businessName) {
+            if (!accessToken) {
+                throw new Error('Not authenticated');
+            }
+            
+            const response = await fetch(CONFIG.execute_endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                    url: url,
+                    business_name: businessName
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Assessment failed');
+            }
+            
+            return await response.json();
+        }
+        
+        // Poll for assessment results
+        async function pollAssessmentStatus(taskId) {
+            if (!accessToken) {
+                throw new Error('Not authenticated');
+            }
+            
+            const response = await fetch(`${CONFIG.status_endpoint}/${taskId}`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to get assessment status');
+            }
+            
+            return await response.json();
+        }
+        
+        // Monitor assessment progress
+        async function monitorAssessment(taskId, url) {
+            const pollInterval = 2000; // 2 seconds
+            const maxPolls = 300; // 10 minutes max
+            let pollCount = 0;
+            
+            const poll = async () => {
+                try {
+                    const status = await pollAssessmentStatus(taskId);
+                    
+                    if (status.status === 'completed' && status.result) {
+                        // Assessment completed successfully
+                        populateResults(status.result, url);
+                        setLoading(false);
+                        showMessage(successMessage, 'Assessment completed successfully!');
+                        return;
+                    } else if (status.status === 'failed') {
+                        // Assessment failed
+                        setLoading(false);
+                        showMessage(errorMessage, `Assessment failed: ${status.error || 'Unknown error'}`);
+                        return;
+                    } else if (status.status === 'in_progress') {
+                        // Still running, show progress if available
+                        let message = 'Assessment in progress...';
+                        if (status.progress) {
+                            message += ` (${status.progress})`;
+                        }
+                        showMessage(successMessage, message);
+                    }
+                    
+                    // Continue polling if not finished and under max polls
+                    pollCount++;
+                    if (pollCount < maxPolls) {
+                        setTimeout(poll, pollInterval);
+                    } else {
+                        setLoading(false);
+                        showMessage(errorMessage, 'Assessment timed out. Please try again.');
+                    }
+                    
+                } catch (error) {
+                    console.error('Polling error:', error);
+                    setLoading(false);
+                    showMessage(errorMessage, 'Failed to monitor assessment progress');
+                }
+            };
+            
+            // Start polling
+            setTimeout(poll, pollInterval);
+        }
+        
+        // Event listeners
+        signOutBtn.addEventListener('click', signOut);
+        
+        // Initialize app when page loads
+        document.addEventListener('DOMContentLoaded', initializeApp);
+        
+        // Show/hide status messages
+        function showMessage(element, message) {
+            element.textContent = message;
+            element.classList.add('show');
+            setTimeout(() => {
+                element.classList.remove('show');
+            }, 5000);
+        }
+        
+        function hideMessage(element) {
+            element.classList.remove('show');
+        }
+        
+        // Show/hide loading state
+        function setLoading(isLoading) {
+            if (isLoading) {
+                btnText.style.display = 'none';
+                loading.classList.add('show');
+                analyzeBtn.disabled = true;
+            } else {
+                btnText.style.display = 'inline';
+                loading.classList.remove('show');
+                analyzeBtn.disabled = false;
+            }
+        }
+        
+        // Format metric value based on type
+        function formatMetricValue(value, type) {
+            if (type === 'score') {
+                return Math.round(value);
+            } else if (type === 'time') {
+                return value >= 1000 ? `${(value/1000).toFixed(1)}s` : `${value}ms`;
+            } else if (type === 'percentage') {
+                return `${Math.round(value)}%`;
+            } else if (type === 'currency') {
+                return `$${value.toFixed(2)}`;
+            } else if (type === 'count') {
+                return value.toLocaleString();
+            } else if (type === 'size') {
+                if (value >= 1024 * 1024) {
+                    return `${(value / (1024 * 1024)).toFixed(1)}MB`;
+                } else if (value >= 1024) {
+                    return `${(value / 1024).toFixed(1)}KB`;
+                } else {
+                    return `${value}B`;
+                }
+            }
+            return value;
+        }
+        
+        // Get status class based on metric value and thresholds
+        function getStatusClass(value, thresholds) {
+            if (value >= thresholds.good) return 'metric-good';
+            if (value >= thresholds.warning) return 'metric-warning';
+            return 'metric-critical';
+        }
+        
+        // Get status badge based on metric value and thresholds
+        function getStatusBadge(value, thresholds) {
+            if (value >= thresholds.good) return '<span class="status-badge status-success">Good</span>';
+            if (value >= thresholds.warning) return '<span class="status-badge status-warning">Needs Work</span>';
+            return '<span class="status-badge status-critical">Critical</span>';
+        }
+        
+        // Transform assessment result data for display
+        function transformAssessmentData(result, url) {
+            // Transform the orchestration result into UI-friendly format
+            const execution = result.execution || result;
+            
+            return {
+                url: url,
+                businessName: result.lead_data?.company || 'Unknown Business',
+                overallScore: execution.overall_score || Math.round(execution.success_rate * 100),
+                totalCost: (execution.total_cost_cents || 0) / 100,
+                executionTime: execution.total_duration_ms || 0,
+                completedAt: execution.completed_at || new Date().toISOString(),
+                taskId: result.task_id,
+                status: execution.status?.value || execution.status,
+                successRate: execution.success_rate || 0,
+                components: {
+                    pagespeed: execution.pagespeed_result,
+                    security: execution.security_result,
+                    gbp: execution.gbp_result,
+                    screenshots: execution.screenshots_result,
+                    semrush: execution.semrush_result,
+                    visual_analysis: execution.visual_analysis_result,
+                    score_calculation: execution.score_calculation_result,
+                    content_generation: execution.content_generation_result
+                }
+            };
+        }
+        
+        // Populate results table with real assessment data
+        function populateResults(result, url) {
+            const data = transformAssessmentData(result, url);
+            
+            resultsUrl.textContent = data.url;
+            overallScore.textContent = data.overallScore;
+            overallScore.className = `score-display ${getStatusClass(data.overallScore, { good: 80, warning: 60 })}`;
+            
+            let tableHTML = '';
+            
+            // Component mapping for display
+            const componentDisplay = {
+                pagespeed: { name: 'Performance (PageSpeed)', icon: '⚡' },
+                security: { name: 'Security Analysis', icon: '🛡️' },
+                gbp: { name: 'Google Business Profile', icon: '🏢' },
+                screenshots: { name: 'Screenshots', icon: '📱' },
+                semrush: { name: 'SEO Analysis (SEMrush)', icon: '🔍' },
+                visual_analysis: { name: 'Visual Analysis (AI)', icon: '🎨' },
+                score_calculation: { name: 'Business Impact Score', icon: '📊' },
+                content_generation: { name: 'Content Generation', icon: '✍️' }
+            };
+            
+            // Add component results
+            Object.entries(data.components).forEach(([componentKey, componentResult]) => {
+                if (!componentResult) return;
+                
+                const display = componentDisplay[componentKey] || { name: componentKey, icon: '📋' };
+                const status = componentResult.status?.value || componentResult.status;
+                const duration = componentResult.duration_ms || 0;
+                const cost = componentResult.cost_cents ? (componentResult.cost_cents / 100) : 0;
+                
+                // Component header
+                tableHTML += `
+                    <tr class="category-row">
+                        <td colspan="5" class="category-header">${display.icon} ${display.name}</td>
+                    </tr>
+                `;
+                
+                // Component status row
+                const statusClass = status === 'success' ? 'status-success' : 
+                                  status === 'failed' ? 'status-critical' : 'status-warning';
+                const statusText = status === 'success' ? 'Success' :
+                                 status === 'failed' ? 'Failed' : 'Partial';
+                
+                tableHTML += `
+                    <tr>
+                        <td>Component Status</td>
+                        <td class="metric-value">${statusText}</td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        <td>${status === 'success' ? 'Complete' : 'Issues'}</td>
+                        <td class="cost-display">${duration}ms</td>
+                    </tr>
+                `;
+                
+                // Add data if available
+                if (componentResult.data && typeof componentResult.data === 'object') {
+                    const data = componentResult.data;
+                    
+                    // Display key metrics based on component type
+                    if (componentKey === 'pagespeed' && data.desktop_score) {
+                        tableHTML += `
+                            <tr>
+                                <td>Desktop Score</td>
+                                <td class="metric-value metric-score">${data.desktop_score}</td>
+                                <td>${getStatusBadge(data.desktop_score, { good: 90, warning: 60 })}</td>
+                                <td>High</td>
+                                <td class="cost-display">$${cost.toFixed(4)}</td>
+                            </tr>
+                        `;
+                        if (data.mobile_score) {
+                            tableHTML += `
+                                <tr>
+                                    <td>Mobile Score</td>
+                                    <td class="metric-value metric-score">${data.mobile_score}</td>
+                                    <td>${getStatusBadge(data.mobile_score, { good: 90, warning: 60 })}</td>
+                                    <td>High</td>
+                                    <td class="cost-display">-</td>
+                                </tr>
+                            `;
+                        }
+                    } else if (componentKey === 'gbp' && data.place_found) {
+                        tableHTML += `
+                            <tr>
+                                <td>Business Found</td>
+                                <td class="metric-value">${data.place_found ? 'Yes' : 'No'}</td>
+                                <td>${getStatusBadge(data.place_found ? 1 : 0, { good: 1, warning: 0 })}</td>
+                                <td>High</td>
+                                <td class="cost-display">$${cost.toFixed(4)}</td>
+                            </tr>
+                        `;
+                        if (data.rating) {
+                            tableHTML += `
+                                <tr>
+                                    <td>Average Rating</td>
+                                    <td class="metric-value metric-score">${data.rating}</td>
+                                    <td>${getStatusBadge(data.rating, { good: 4.0, warning: 3.0 })}</td>
+                                    <td>Medium</td>
+                                    <td class="cost-display">-</td>
+                                </tr>
+                            `;
+                        }
+                    } else if (componentKey === 'security') {
+                        if (data.ssl_valid !== undefined) {
+                            tableHTML += `
+                                <tr>
+                                    <td>SSL Certificate</td>
+                                    <td class="metric-value">${data.ssl_valid ? 'Valid' : 'Invalid'}</td>
+                                    <td>${getStatusBadge(data.ssl_valid ? 1 : 0, { good: 1, warning: 0 })}</td>
+                                    <td>High</td>
+                                    <td class="cost-display">$${cost.toFixed(4)}</td>
+                                </tr>
+                            `;
+                        }
+                    }
+                }
+            });
+            
+            // Add summary row
+            tableHTML += `
+                <tr class="category-row">
+                    <td colspan="5" class="category-header">📊 Assessment Summary</td>
+                </tr>
+                <tr>
+                    <td><strong>Overall Success Rate</strong></td>
+                    <td class="metric-value metric-score">${Math.round(data.successRate * 100)}%</td>
+                    <td><span class="status-badge ${data.successRate >= 0.8 ? 'status-success' : data.successRate >= 0.5 ? 'status-warning' : 'status-critical'}">${data.status}</span></td>
+                    <td>Critical</td>
+                    <td class="cost-display">${data.executionTime}ms</td>
+                </tr>
+                <tr>
+                    <td><strong>Total Analysis Cost</strong></td>
+                    <td class="metric-value cost-display">$${data.totalCost.toFixed(4)}</td>
+                    <td><span class="status-badge status-success">Complete</span></td>
+                    <td>-</td>
+                    <td class="cost-display">${new Date(data.completedAt).toLocaleTimeString()}</td>
+                </tr>
+            `;
+            
+            resultsTableBody.innerHTML = tableHTML;
+            resultsSection.classList.add('show', 'fade-in');
+            
+            // Scroll to results
+            resultsSection.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }
+        
+        // Form submission handler
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = urlInput.value.trim();
+            const businessName = businessNameInput.value.trim();
+            
+            if (!url) {
+                showMessage(errorMessage, 'Please enter a valid URL');
+                return;
+            }
+            
+            // Validate URL format
+            try {
+                new URL(url);
+            } catch {
+                showMessage(errorMessage, 'Please enter a valid URL (including https://)');
+                return;
+            }
+            
+            if (!accessToken) {
+                showMessage(errorMessage, 'Please sign in first');
+                return;
+            }
+            
+            hideMessage(errorMessage);
+            hideMessage(successMessage);
+            setLoading(true);
+            
+            try {
+                showMessage(successMessage, 'Starting comprehensive website analysis...');
+                
+                // Execute real assessment
+                const assessmentResponse = await executeAssessment(url, businessName);
+                
+                showMessage(successMessage, `Assessment started (Task ID: ${assessmentResponse.task_id}). Please wait...`);
+                
+                // Monitor assessment progress
+                await monitorAssessment(assessmentResponse.task_id, url);
+                
+            } catch (error) {
+                console.error('Assessment failed:', error);
+                setLoading(false);
+                showMessage(errorMessage, error.message || 'Assessment failed. Please try again.');
+            }
+        });
+        
+        // Auto-format URL input
+        urlInput.addEventListener('blur', (e) => {
+            let url = e.target.value.trim();
+            if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+                e.target.value = 'https://' + url;
+            }
+        });
+        
+        // Make handleGoogleAuth globally available for Google OAuth callback
+        window.handleGoogleAuth = handleGoogleAuth;
+    </script>
+</body>
+</html>

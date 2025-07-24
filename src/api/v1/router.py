@@ -5,7 +5,7 @@ Combines all v1 API endpoints for the LeadFactory application
 
 from fastapi import APIRouter
 
-from src.api.v1 import leads, assessments, campaigns, sales, assessments_orchestrator
+from src.api.v1 import leads, assessments, campaigns, sales, assessments_orchestrator, assessment_ui
 
 # Create the main API router
 api_router = APIRouter()
@@ -16,6 +16,7 @@ api_router.include_router(assessments.router)
 api_router.include_router(campaigns.router)
 api_router.include_router(sales.router)
 api_router.include_router(assessments_orchestrator.router, prefix="/orchestrator", tags=["assessment-orchestrator"])
+api_router.include_router(assessment_ui.router)  # Assessment UI endpoints
 
 # Health check for API v1
 @api_router.get("/health", tags=["health"])

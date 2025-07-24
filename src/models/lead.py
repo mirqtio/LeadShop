@@ -3,7 +3,10 @@ PRP-001: Lead Data Model Implementation
 SQLAlchemy models for business leads, assessments, campaigns, and sales tracking
 """
 
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.models.assessment_cost import AssessmentCost
 from datetime import datetime
 from sqlalchemy import String, Integer, Float, Text, JSON, ForeignKey, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -66,6 +69,12 @@ class Lead(Base):
     sales: Mapped[List["Sale"]] = relationship(
         "Sale",
         back_populates="lead", 
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+    assessment_costs: Mapped[List["AssessmentCost"]] = relationship(
+        "AssessmentCost",
+        back_populates="lead",
         cascade="all, delete-orphan",
         lazy="selectin"
     )
