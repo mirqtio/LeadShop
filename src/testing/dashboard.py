@@ -206,7 +206,7 @@ class PipelineComponentTester:
         start_time = time.time()
         
         try:
-            from src.assessments.pagespeed import analyze_pagespeed
+            from src.assessments.pagespeed import assess_pagespeed
             
             # Test PageSpeed integration with mock data
             await asyncio.sleep(0.3)
@@ -245,7 +245,7 @@ class PipelineComponentTester:
         start_time = time.time()
         
         try:
-            from src.assessments.security import analyze_security
+            from src.assessments.technical_scraper import assess_technical_security
             
             # Mock security analysis
             await asyncio.sleep(0.4)
@@ -287,7 +287,7 @@ class PipelineComponentTester:
         start_time = time.time()
         
         try:
-            from src.assessments.gbp import analyze_business_profile
+            from src.assessments.gbp_integration import assess_google_business_profile
             
             # Mock GBP analysis
             await asyncio.sleep(0.25)
@@ -404,7 +404,7 @@ class PipelineComponentTester:
         start_time = time.time()
         
         try:
-            from src.assessments.visual_analysis import analyze_website_visuals
+            from src.assessments.visual_analysis import assess_visual_analysis
             
             # Mock visual analysis
             await asyncio.sleep(0.6)

@@ -133,7 +133,7 @@ async def test_complete_prp_integration():
     # Test PRP-008: LLM Visual Analysis
     print("👁️ Testing PRP-008: LLM Visual Analysis")
     try:
-        from src.assessments.visual_analysis import analyze_website_visuals
+        from src.assessments.visual_analysis import assess_visual_analysis
         
         print("   🧠 Analyzing UX and visual design with GPT-4 Vision...")
         

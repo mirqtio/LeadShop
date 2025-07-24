@@ -300,7 +300,7 @@ class AssessmentOrchestrator:
             
         elif component_name == "gbp":
             # Call Google Business Profile integration (PRP-005)
-            from src.assessments.gbp import assess_google_business_profile
+            from src.assessments.gbp_integration import assess_google_business_profile
             
             # Extract business details for GBP search
             company = lead_data.get('company', '')
