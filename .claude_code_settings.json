@@ -1,0 +1,5 @@
+{
+  "model": "claude-opus-4-20250514",
+  "enabledMcpjsonServers": ["magic", "sequential-thinking", "context7"],
+  "enableAllProjectMcpServers": true
+}

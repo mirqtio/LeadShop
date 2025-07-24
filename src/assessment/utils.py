@@ -100,6 +100,10 @@ def run_async_in_celery(async_func: Callable[..., Awaitable[T]], *args, **kwargs
 
 def _run_async_in_new_loop(async_func: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     """Helper function to run async function in a new event loop."""
+    import nest_asyncio
+    # Allow nested event loops - this helps with asyncpg connections
+    nest_asyncio.apply()
+    
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     coro = None

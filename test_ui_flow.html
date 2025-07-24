@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test UI Individual Metrics Display</title>
+</head>
+<body>
+    <h1>Testing Individual Metrics Display</h1>
+    <p>This simulates the actual UI results format</p>
+    
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Metric</th>
+                <th>Value</th>
+                <th>Status</th>
+                <th>Source</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody id="resultsBody">
+        </tbody>
+    </table>
+
+    <script>
+        // Simulate the actual response format
+        const testResults = {
+            "total_reviews": {
+                "status": "success",
+                "metric": "Total Reviews",
+                "value": "267",
+                "source": "Google Business Profile",
+                "description": "Total public reviews on GBP"
+            },
+            "avg_rating": {
+                "status": "success",
+                "metric": "Average Rating",
+                "value": "4.6/5",
+                "source": "Google Business Profile",
+                "description": "Average star rating (1–5)"
+            },
+            "fcp": {
+                "status": "success",
+                "metric": "First Contentful Paint (FCP)",
+                "value": "1200ms",
+                "source": "PageSpeed",
+                "description": "Time to first text/image paint - Core Web Vital"
+            },
+            "https_enforced": {
+                "status": "success",
+                "metric": "HTTPS Enforced",
+                "value": "Yes",
+                "source": "Security Analysis",
+                "description": "Redirects to HTTPS + valid certificate flag"
+            }
+        };
+
+        // Use the same displayResults function from our UI
+        function displayResults(results) {
+            const resultsBody = document.getElementById('resultsBody');
+            
+            if (!results) {
+                resultsBody.innerHTML = '<tr><td colspan="5">No results available</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Display individual granular metrics
+            Object.entries(results).forEach(([metricKey, metricData]) => {
+                const metric = metricData.metric || metricKey;
+                const value = metricData.value || 'N/A';
+                const status = metricData.status || 'Unknown';
+                const source = metricData.source || 'System';
+                const description = metricData.description || 'No description available';
+                
+                html += `
+                    <tr>
+                        <td>${metric}</td>
+                        <td>${value}</td>
+                        <td>${status}</td>
+                        <td>${source}</td>
+                        <td>${description}</td>
+                    </tr>
+                `;
+            });
+            
+            if (html === '') {
+                html = '<tr><td colspan="5">No assessment data found</td></tr>';
+            }
+            
+            resultsBody.innerHTML = html;
+        }
+
+        // Test the display
+        displayResults(testResults);
+    </script>
+</body>
+</html>

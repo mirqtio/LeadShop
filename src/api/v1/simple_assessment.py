@@ -16,6 +16,7 @@ from src.core.database import get_db
 from src.models.lead import Lead
 from src.schemas.lead import LeadCreate
 from src.assessment.orchestrator import submit_assessment, get_assessment_status, coordinate_assessment
+from src.assessment.tasks import full_assessment_orchestrator_task
 
 logger = logging.getLogger(__name__)
 
@@ -118,10 +119,11 @@ async def serve_simple_assessment_ui(request: Request):
         <table id="resultsTable">
             <thead>
                 <tr>
-                    <th>Component</th>
-                    <th>Score</th>
+                    <th>Metric</th>
+                    <th>Value</th>
                     <th>Status</th>
-                    <th>Details</th>
+                    <th>Source</th>
+                    <th>Description</th>
                 </tr>
             </thead>
             <tbody id="resultsBody">
@@ -227,31 +229,34 @@ async def serve_simple_assessment_ui(request: Request):
         
         function displayResults(results) {
             if (!results) {
-                resultsBody.innerHTML = '<tr><td colspan="4">No results available</td></tr>';
+                resultsBody.innerHTML = '<tr><td colspan="5">No results available</td></tr>';
                 resultsDiv.style.display = 'block';
                 return;
             }
             
             let html = '';
             
-            // Display each component's results
-            Object.entries(results).forEach(([component, data]) => {
-                const score = data.data?.score || 'N/A';
-                const status = data.status || 'Unknown';
-                const description = data.description || data.component || component;
+            // Display individual granular metrics
+            Object.entries(results).forEach(([metricKey, metricData]) => {
+                const metric = metricData.metric || metricKey;
+                const value = metricData.value || 'N/A';
+                const status = metricData.status || 'Unknown';
+                const source = metricData.source || 'System';
+                const description = metricData.description || 'No description available';
                 
                 html += `
                     <tr>
-                        <td>${component.toUpperCase()}</td>
-                        <td>${score}</td>
+                        <td>${metric}</td>
+                        <td>${value}</td>
                         <td>${status}</td>
+                        <td>${source}</td>
                         <td>${description}</td>
                     </tr>
                 `;
             });
             
             if (html === '') {
-                html = '<tr><td colspan="4">No assessment data found</td></tr>';
+                html = '<tr><td colspan="5">No assessment data found</td></tr>';
             }
             
             resultsBody.innerHTML = html;
@@ -334,10 +339,11 @@ async def execute_simple_assessment(
             lead_id = db_lead.id
             logger.info(f"Created new lead {lead_id} for URL {url}")
         
-        # Now use the existing orchestration system
-        task_id = submit_assessment(lead_id)
+        # Now use the full assessment orchestrator that saves decomposed scores
+        task = full_assessment_orchestrator_task.delay(lead_id)
+        task_id = task.id
         
-        logger.info(f"Assessment task submitted: {task_id} for lead {lead_id}")
+        logger.info(f"Full assessment orchestrator task submitted: {task_id} for lead {lead_id}")
         
         # Return the task ID so the frontend can check status
         return AssessmentResponse(
@@ -383,73 +389,226 @@ async def get_simple_assessment_status(
                 assessment = assessment_result.scalar_one_or_none()
                 
                 if assessment:
-                    # Format the results for the frontend
+                    # Complete database row display - show ALL assessment fields as requested
                     results = {}
                     
-                    # PageSpeed results
-                    if assessment.pagespeed_score is not None:
-                        results["pagespeed"] = {
-                            "status": "success",
-                            "data": {
-                                "score": assessment.pagespeed_score,
-                                "raw_data": assessment.pagespeed_data
-                            },
-                            "component": "PageSpeed Analysis",
-                            "description": "Performance metrics and Core Web Vitals"
+                    # Get all assessment attributes using reflection
+                    import inspect
+                    from sqlalchemy import inspect as sql_inspect
+                    
+                    # Get the SQLAlchemy inspector for the assessment instance
+                    inspector = sql_inspect(assessment)
+                    
+                    # Get all column names from the Assessment model
+                    column_names = [column.key for column in inspector.mapper.columns]
+                    
+                    # Display every single database field
+                    for field_name in column_names:
+                        field_value = getattr(assessment, field_name, None)
+                        
+                        # Format field name for display
+                        display_name = field_name.replace('_', ' ').title()
+                        
+                        # Determine field type and format appropriately
+                        if field_value is None:
+                            formatted_value = "NULL"
+                            status = "null"
+                            description = f"No data available for {display_name.lower()}"
+                        elif isinstance(field_value, dict):
+                            # JSON fields - show size and type info
+                            data_size = len(str(field_value))
+                            key_count = len(field_value.keys()) if isinstance(field_value, dict) else 0
+                            formatted_value = f"JSON object ({key_count} keys, {data_size} chars)"
+                            status = "data"
+                            description = f"Structured data for {display_name.lower()}"
+                        elif isinstance(field_value, (int, float)):
+                            formatted_value = str(field_value)
+                            status = "metric" if "score" in field_name else "info"
+                            description = f"Numeric value for {display_name.lower()}"
+                        elif hasattr(field_value, 'isoformat'):
+                            # DateTime fields
+                            formatted_value = field_value.isoformat()
+                            status = "info"
+                            description = f"Timestamp for {display_name.lower()}"
+                        else:
+                            # String and other fields
+                            formatted_value = str(field_value)
+                            status = "error" if "error" in field_name else "info"
+                            description = f"Text value for {display_name.lower()}"
+                        
+                        results[field_name] = {
+                            "status": status,
+                            "metric": display_name,
+                            "value": formatted_value,
+                            "source": "Database",
+                            "description": description
                         }
                     
-                    # Security results  
-                    if assessment.security_score is not None:
-                        results["security"] = {
-                            "status": "success", 
-                            "data": {
-                                "score": assessment.security_score,
-                                "headers": assessment.security_headers
-                            },
-                            "component": "Security Analysis",
-                            "description": "Technical security scanning and vulnerability assessment"
-                        }
+                    # Additionally, extract and display individual metrics from JSON fields
+                    # This provides the 53 granular metrics from the ASSESSMENT_PROGRESS_TRACKER
                     
-                    # Mobile results
-                    if assessment.mobile_score is not None:
-                        results["mobile"] = {
-                            "status": "success",
-                            "data": {
-                                "score": assessment.mobile_score
-                            },
-                            "component": "Mobile Analysis", 
-                            "description": "Mobile optimization assessment"
-                        }
+                    # PageSpeed individual metrics (7 metrics from PRP-003)
+                    if assessment.pagespeed_data and isinstance(assessment.pagespeed_data, dict):
+                        mobile_analysis = assessment.pagespeed_data.get('mobile_analysis', {})
+                        if isinstance(mobile_analysis, dict):
+                            cwv = mobile_analysis.get('core_web_vitals', {})
+                            if isinstance(cwv, dict):
+                                if cwv.get('first_contentful_paint') is not None:
+                                    results["fcp_metric"] = {
+                                        "status": "metric",
+                                        "metric": "First Contentful Paint (FCP)",
+                                        "value": f"{cwv['first_contentful_paint']:.0f}ms",
+                                        "source": "PageSpeed",
+                                        "description": "Time to first text/image paint - Core Web Vital"
+                                    }
+                                if cwv.get('largest_contentful_paint') is not None:
+                                    results["lcp_metric"] = {
+                                        "status": "metric", 
+                                        "metric": "Largest Contentful Paint (LCP)",
+                                        "value": f"{cwv['largest_contentful_paint']:.0f}ms",
+                                        "source": "PageSpeed",
+                                        "description": "Time to render the largest viewport element"
+                                    }
+                                if cwv.get('cumulative_layout_shift') is not None:
+                                    results["cls_metric"] = {
+                                        "status": "metric",
+                                        "metric": "Cumulative Layout Shift (CLS)", 
+                                        "value": f"{cwv['cumulative_layout_shift']:.3f}",
+                                        "source": "PageSpeed",
+                                        "description": "Cumulative visual-shift score during load"
+                                    }
+                                if cwv.get('total_blocking_time') is not None:
+                                    results["tbt_metric"] = {
+                                        "status": "metric",
+                                        "metric": "Total Blocking Time (TBT)",
+                                        "value": f"{cwv['total_blocking_time']:.0f}ms", 
+                                        "source": "PageSpeed",
+                                        "description": "Main-thread blocking milliseconds (FCP → TTI)"
+                                    }
+                                if cwv.get('time_to_interactive') is not None:
+                                    results["tti_metric"] = {
+                                        "status": "metric",
+                                        "metric": "Time to Interactive (TTI)",
+                                        "value": f"{cwv['time_to_interactive']:.0f}ms",
+                                        "source": "PageSpeed", 
+                                        "description": "Point when page is reliably interactive"
+                                    }
+                                if cwv.get('performance_score') is not None:
+                                    results["perf_score_metric"] = {
+                                        "status": "metric",
+                                        "metric": "Performance Score (runtime)",
+                                        "value": str(cwv['performance_score']),
+                                        "source": "PageSpeed",
+                                        "description": "Weighted composite (0-100) across vitals"
+                                    }
                     
-                    # SEO results
-                    if assessment.seo_score is not None:
-                        results["seo"] = {
-                            "status": "success",
-                            "data": {
-                                "score": assessment.seo_score,
-                                "semrush_data": assessment.semrush_data
-                            },
-                            "component": "SEO & Competitive Analysis",
-                            "description": "SEMrush domain analysis and competitive insights"
-                        }
+                    # Security metrics (9 metrics from PRP-004)  
+                    if assessment.security_headers and isinstance(assessment.security_headers, dict):
+                        sec_data = assessment.security_headers
+                        if sec_data.get('https_enforced') is not None:
+                            results["https_metric"] = {
+                                "status": "metric",
+                                "metric": "HTTPS Enforced",
+                                "value": "Yes" if sec_data['https_enforced'] else "No",
+                                "source": "Security Scan",
+                                "description": "Redirects to HTTPS + valid certificate flag"
+                            }
+                        if sec_data.get('tls_version'):
+                            results["tls_metric"] = {
+                                "status": "metric", 
+                                "metric": "TLS Version",
+                                "value": str(sec_data['tls_version']),
+                                "source": "Security Scan",
+                                "description": "Highest TLS protocol supported (≥ 1.2 expected)"
+                            }
+                        if sec_data.get('hsts_header') is not None:
+                            results["hsts_metric"] = {
+                                "status": "metric",
+                                "metric": "HSTS Header Present", 
+                                "value": "Yes" if sec_data['hsts_header'] else "No",
+                                "source": "Security Scan",
+                                "description": "Strict-Transport-Security adherence"
+                            }
                     
-                    # Visual analysis results
-                    if assessment.visual_analysis:
-                        results["visual"] = {
-                            "status": "success",
-                            "data": assessment.visual_analysis,
-                            "component": "Visual & UX Analysis", 
-                            "description": "Screenshot analysis and visual design assessment"
-                        }
+                    # Google Business Profile metrics (9 metrics from PRP-005)
+                    if assessment.gbp_data and isinstance(assessment.gbp_data, dict):
+                        gbp = assessment.gbp_data
+                        if gbp.get('rating') is not None:
+                            results["gbp_rating_metric"] = {
+                                "status": "metric",
+                                "metric": "GBP Rating",
+                                "value": f"{gbp['rating']:.1f}/5.0",
+                                "source": "Google Business Profile",
+                                "description": "Average star rating (1–5)"
+                            }
+                        if gbp.get('review_count') is not None:
+                            results["gbp_reviews_metric"] = {
+                                "status": "metric",
+                                "metric": "GBP Review Count",
+                                "value": str(gbp['review_count']),
+                                "source": "Google Business Profile", 
+                                "description": "Total public reviews on GBP"
+                            }
                     
-                    # LLM insights
-                    if assessment.llm_insights:
-                        results["insights"] = {
-                            "status": "success",
-                            "data": assessment.llm_insights,
-                            "component": "AI Insights",
-                            "description": "AI-powered analysis and recommendations"
-                        }
+                    # SEMrush metrics (6 metrics from PRP-007)
+                    if assessment.semrush_data and isinstance(assessment.semrush_data, dict):
+                        sem = assessment.semrush_data
+                        if sem.get('domain_authority_score') is not None:
+                            results["sem_authority_metric"] = {
+                                "status": "metric",
+                                "metric": "Domain Authority Score",
+                                "value": str(sem['domain_authority_score']),
+                                "source": "SEMrush",
+                                "description": "SEMrush proprietary authority metric"
+                            }
+                        if sem.get('organic_traffic_est') is not None:
+                            results["sem_traffic_metric"] = {
+                                "status": "metric",
+                                "metric": "Organic Traffic Est.",
+                                "value": str(sem['organic_traffic_est']),
+                                "source": "SEMrush",
+                                "description": "Modelled monthly organic sessions"
+                            }
+                    
+                    # Visual Analysis metrics (13 metrics from PRP-008)
+                    if assessment.visual_analysis and isinstance(assessment.visual_analysis, dict):
+                        visual = assessment.visual_analysis
+                        if visual.get('visual_rubric_1') is not None:
+                            results["visual_rubric_1_metric"] = {
+                                "status": "metric",
+                                "metric": "Above-the-fold Clarity",
+                                "value": f"{visual['visual_rubric_1']}/10",
+                                "source": "LLM Visual Analysis",
+                                "description": "Headline + primary offer visible without scroll (grade 0-10)"
+                            }
+                        if visual.get('visual_rubric_2') is not None:
+                            results["visual_rubric_2_metric"] = {
+                                "status": "metric",
+                                "metric": "Primary CTA Prominence", 
+                                "value": f"{visual['visual_rubric_2']}/10",
+                                "source": "LLM Visual Analysis",
+                                "description": "Relative size / colour salience of CTA button"
+                            }
+                    
+                    # LLM Content metrics (7 metrics from PRP-010)
+                    if assessment.llm_insights and isinstance(assessment.llm_insights, dict):
+                        llm = assessment.llm_insights
+                        if llm.get('unique_value_prop_clarity') is not None:
+                            results["uvp_clarity_metric"] = {
+                                "status": "metric",
+                                "metric": "Unique Value Prop Clarity",
+                                "value": f"{llm['unique_value_prop_clarity']}/10",
+                                "source": "LLM Content Generator", 
+                                "description": "GPT-4 analysis of offer copy specificity"
+                            }
+                        if llm.get('contact_info_presence') is not None:
+                            results["contact_info_metric"] = {
+                                "status": "metric",
+                                "metric": "Contact Info Presence",
+                                "value": "Yes" if llm['contact_info_presence'] else "No",
+                                "source": "LLM Content Generator",
+                                "description": "GPT-4 detection of phone / address / email"
+                            }
                     
                     return {
                         "task_id": task_id,

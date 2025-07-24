@@ -215,7 +215,7 @@ class GBPClient:
             "locationBias": {
                 "circle": {
                     "center": {"latitude": 39.8283, "longitude": -98.5795},  # Geographic center of US
-                    "radius": 5000000.0  # 5000km radius to cover all US
+                    "radius": 50000.0  # 50km radius (Google API maximum)
                 }
             }
         }

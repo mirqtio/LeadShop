@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeadShop - Comprehensive Website Assessment</title>
+    <!-- Google OAuth 2.0 -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        /* Reset and base styles using Anthracite design system */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            /* Anthracite Design System Colors */
+            --anthracite: #0a0a0a;
+            --white: #ffffff;
+            --synthesis-blue: #0066ff;
+            --synthesis-blue-hover: #0052cc;
+            --critical: #dc2626;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --neutral: #6b7280;
+            --light-bg: #f8f9fa;
+            --border: #e9ecef;
+            --dark-text: #2d3748;
+            --text-muted: #6c757d;
+            
+            /* Typography */
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            --font-display: 72px;
+            --font-h1: 48px;
+            --font-h2: 36px;
+            --font-h3: 28px;
+            --font-h4: 20px;
+            --font-body-large: 18px;
+            --font-body: 16px;
+            --font-body-small: 14px;
+            --font-caption: 12px;
+            
+            /* Spacing */
+            --space-xs: 8px;
+            --space-sm: 16px;
+            --space-md: 24px;
+            --space-lg: 32px;
+            --space-xl: 48px;
+            --space-2xl: 64px;
+            --space-3xl: 80px;
+            
+            /* Animation */
+            --duration-micro: 150ms;
+            --duration-standard: 200ms;
+            --duration-page: 300ms;
+            --duration-data: 400ms;
+            --easing-out: ease-out;
+            --easing-in-out: ease-in-out;
+        }
+        
+        body {
+            font-family: var(--font-family);
+            background: var(--light-bg);
+            color: var(--dark-text);
+            line-height: 1.6;
+            font-size: var(--font-body);
+        }
+        
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-xl);
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--anthracite) 0%, #1a1a1a 100%);
+            color: var(--white);
+            padding: var(--space-3xl) var(--space-xl);
+            margin: calc(-1 * var(--space-xl)) calc(-1 * var(--space-xl)) var(--space-2xl);
+            border-radius: 16px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: var(--font-h1);
+            font-weight: 300;
+            margin-bottom: var(--space-sm);
+            letter-spacing: -0.02em;
+        }
+        
+        .header p {
+            font-size: var(--font-body-large);
+            opacity: 0.8;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--white);
+            padding: var(--space-xl);
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+            border: 1px solid var(--border);
+            margin-bottom: var(--space-xl);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-md);
+            padding-bottom: var(--space-md);
+            border-bottom: 2px solid var(--light-bg);
+        }
+        
+        .card-title {
+            font-size: var(--font-h3);
+            font-weight: 500;
+            color: var(--anthracite);
+        }
+        
+        /* Form Elements */
+        .form-group {
+            margin-bottom: var(--space-md);
+        }
+        
+        .form-label {
+            display: block;
+            font-size: var(--font-body-small);
+            font-weight: 600;
+            color: var(--dark-text);
+            margin-bottom: var(--space-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: var(--space-sm) var(--space-md);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: var(--font-body);
+            font-family: var(--font-family);
+            transition: all var(--duration-standard) var(--easing-out);
+            background: var(--white);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--synthesis-blue);
+            box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
+        }
+        
+        .form-input::placeholder {
+            color: var(--neutral);
+        }
+        
+        /* URL Input specific */
+        .url-input {
+            font-family: var(--font-mono);
+            font-size: var(--font-body-small);
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-xs);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: 8px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all var(--duration-standard) var(--easing-out);
+            border: none;
+            cursor: pointer;
+            font-size: var(--font-body);
+            font-family: var(--font-family);
+            min-height: 48px;
+        }
+        
+        .btn-primary {
+            background: var(--synthesis-blue);
+            color: var(--white);
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: var(--synthesis-blue-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,102,255,0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: var(--neutral);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-large {
+            padding: var(--space-md) var(--space-lg);
+            font-size: var(--font-body-large);
+            min-height: 56px;
+        }
+        
+        /* Status Components */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: var(--font-caption);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .status-pending {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+        
+        .status-running {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .status-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-failed {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        /* Progress Bar */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: var(--space-sm) 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--synthesis-blue);
+            transition: width var(--duration-data) var(--easing-out);
+        }
+        
+        /* Component Status Grid */
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-md) 0;
+        }
+        
+        .component-card {
+            background: var(--light-bg);
+            padding: var(--space-md);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            transition: all var(--duration-standard) var(--easing-out);
+        }
+        
+        .component-card:hover {
+            border-color: var(--synthesis-blue);
+            box-shadow: 0 2px 8px rgba(0,102,255,0.1);
+        }
+        
+        .component-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-sm);
+        }
+        
+        .component-name {
+            font-weight: 600;
+            color: var(--dark-text);
+        }
+        
+        .component-icon {
+            font-size: 24px;
+            margin-right: var(--space-xs);
+        }
+        
+        /* Loading States */
+        .loading {
+            display: none;
+            align-items: center;
+            gap: var(--space-xs);
+        }
+        
+        .loading.show {
+            display: inline-flex;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--white);
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .spinner-dark {
+            border-color: var(--neutral);
+            border-top-color: transparent;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Results Section */
+        .results-container {
+            display: none;
+        }
+        
+        .results-container.show {
+            display: block;
+            animation: fadeIn var(--duration-page) var(--easing-out);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Score Display */
+        .score-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-md) 0;
+        }
+        
+        .score-card {
+            text-align: center;
+            padding: var(--space-md);
+            background: var(--light-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        
+        .score-value {
+            font-size: var(--font-h2);
+            font-weight: 300;
+            color: var(--synthesis-blue);
+            margin-bottom: var(--space-xs);
+        }
+        
+        .score-label {
+            font-size: var(--font-body-small);
+            color: var(--neutral);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        /* Metrics Table */
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: var(--space-md);
+        }
+        
+        .metrics-table th {
+            background: var(--anthracite);
+            color: var(--white);
+            padding: var(--space-md);
+            text-align: left;
+            font-weight: 600;
+            font-size: var(--font-body-small);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .metrics-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        
+        .metrics-table tr:hover {
+            background: #fafbfc;
+        }
+        
+        .metric-category {
+            background: var(--light-bg) !important;
+            font-weight: 600;
+            color: var(--dark-text);
+            font-size: var(--font-body);
+        }
+        
+        .metric-name {
+            font-weight: 500;
+            color: var(--dark-text);
+        }
+        
+        .metric-value {
+            font-family: var(--font-mono);
+            font-weight: 600;
+        }
+        
+        .metric-good {
+            color: var(--success);
+        }
+        
+        .metric-warning {
+            color: var(--warning);
+        }
+        
+        .metric-critical {
+            color: var(--critical);
+        }
+        
+        .metric-neutral {
+            color: var(--neutral);
+        }
+        
+        /* Visual Scores */
+        .visual-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+        
+        .visual-score-item {
+            text-align: center;
+            padding: var(--space-md);
+            background: var(--light-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        
+        .visual-score-value {
+            font-size: var(--font-h3);
+            font-weight: 300;
+            margin-bottom: var(--space-xs);
+        }
+        
+        .visual-score-label {
+            font-size: var(--font-caption);
+            color: var(--text-muted);
+        }
+        
+        /* Error Display */
+        .error-container {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: var(--space-md);
+            margin: var(--space-md) 0;
+        }
+        
+        .error-title {
+            font-weight: 600;
+            color: var(--critical);
+            margin-bottom: var(--space-xs);
+        }
+        
+        .error-stack {
+            font-family: var(--font-mono);
+            font-size: var(--font-body-small);
+            color: #991b1b;
+            white-space: pre-wrap;
+            background: rgba(255,255,255,0.5);
+            padding: var(--space-sm);
+            border-radius: 4px;
+            margin-top: var(--space-sm);
+        }
+        
+        /* Alert Messages */
+        .alert {
+            padding: var(--space-sm) var(--space-md);
+            border-radius: 8px;
+            margin: var(--space-sm) 0;
+            font-size: var(--font-body-small);
+            display: none;
+        }
+        
+        .alert.show {
+            display: block;
+        }
+        
+        .alert-error {
+            background: #fee2e2;
+            color: var(--critical);
+            border: 1px solid #fecaca;
+        }
+        
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--space-md);
+            }
+            
+            .header {
+                padding: var(--space-xl) var(--space-md);
+                margin: calc(-1 * var(--space-md)) calc(-1 * var(--space-md)) var(--space-xl);
+            }
+            
+            .header h1 {
+                font-size: var(--font-h2);
+            }
+            
+            .card {
+                padding: var(--space-md);
+            }
+            
+            .component-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .score-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .visual-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            .metrics-table {
+                font-size: var(--font-body-small);
+            }
+            
+            .metrics-table th,
+            .metrics-table td {
+                padding: var(--space-xs) var(--space-sm);
+            }
+        }
+        
+        /* Utility Classes */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-muted { color: var(--text-muted); }
+        .mb-0 { margin-bottom: 0; }
+        .mt-md { margin-top: var(--space-md); }
+        .mt-lg { margin-top: var(--space-lg); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Comprehensive Website Assessment</h1>
+            <p>Complete technical analysis with PageSpeed, Security, SEO, Visual UI, and Business Impact metrics</p>
+        </header>
+        
+        <!-- Authentication Section -->
+        <section class="card" id="authSection">
+            <div class="text-center" style="padding: var(--space-xl);">
+                <h3 style="margin-bottom: var(--space-md); color: var(--dark-text);">Sign in to start assessment</h3>
+                <p style="margin-bottom: var(--space-lg); color: var(--neutral);">Sign in with Google to access comprehensive website assessment tools</p>
+                <div id="g_id_onload"
+                     data-client_id=""
+                     data-context="signin"
+                     data-ux_mode="popup"
+                     data-callback="handleGoogleAuth">
+                </div>
+                <div class="g_id_signin" 
+                     data-type="standard"
+                     data-shape="rectangular"
+                     data-theme="outline"
+                     data-text="signin_with"
+                     data-size="large"
+                     data-logo_alignment="left">
+                </div>
+            </div>
+        </section>
+
+        <!-- Assessment Form -->
+        <section class="card" id="assessmentFormSection" style="display: none;">
+            <div class="card-header">
+                <h2 class="card-title">Assessment Configuration</h2>
+                <div id="userInfo" style="display: flex; align-items: center; gap: var(--space-sm);">
+                    <img id="userPicture" src="" alt="User" style="width: 32px; height: 32px; border-radius: 50%;">
+                    <div>
+                        <div id="userName" style="font-weight: 500; font-size: var(--font-body-small);"></div>
+                        <div id="userEmail" style="font-size: var(--font-caption); color: var(--neutral);"></div>
+                    </div>
+                    <button id="signOutBtn" style="margin-left: var(--space-md); background: none; border: none; color: var(--neutral); cursor: pointer; font-size: var(--font-body-small);">Sign Out</button>
+                </div>
+            </div>
+
+            <form id="assessmentForm">
+                <div class="form-group">
+                    <label class="form-label" for="websiteUrl">Website URL *</label>
+                    <input 
+                        type="url" 
+                        id="websiteUrl" 
+                        class="form-input url-input" 
+                        placeholder="https://example.com"
+                        required
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="businessName">Business Name (Optional)</label>
+                    <input 
+                        type="text" 
+                        id="businessName" 
+                        class="form-input" 
+                        placeholder="Acme Corporation"
+                    >
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-large" id="analyzeBtn" style="width: 100%;">
+                    <span class="btn-text">Start Comprehensive Analysis</span>
+                    <span class="loading">
+                        <span class="spinner"></span>
+                        Starting Analysis...
+                    </span>
+                </button>
+                
+                <div class="alert alert-error" id="errorMessage"></div>
+                <div class="alert alert-success" id="successMessage"></div>
+                <div class="alert alert-info" id="infoMessage"></div>
+            </form>
+        </section>
+        
+        <!-- Assessment Progress -->
+        <section class="card" id="progressSection" style="display: none;">
+            <div class="card-header">
+                <h2 class="card-title">Assessment Progress</h2>
+                <span class="status-indicator status-running">
+                    <span class="spinner spinner-dark"></span>
+                    Running
+                </span>
+            </div>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+            </div>
+            
+            <div class="component-grid" id="componentStatus">
+                <!-- Component status cards will be inserted here -->
+            </div>
+        </section>
+        
+        <!-- Results Section -->
+        <div class="results-container" id="resultsContainer">
+            <!-- Overall Scores -->
+            <section class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Overall Assessment Results</h2>
+                    <span id="assessmentUrl" class="text-muted" style="font-family: var(--font-mono); font-size: var(--font-body-small);"></span>
+                </div>
+                
+                <div class="score-grid" id="overallScores">
+                    <!-- Score cards will be inserted here -->
+                </div>
+            </section>
+            
+            <!-- Detailed Metrics -->
+            <section class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Detailed Metrics Analysis</h2>
+                </div>
+                
+                <table class="metrics-table" id="metricsTable">
+                    <thead>
+                        <tr>
+                            <th width="30%">Metric</th>
+                            <th width="25%">Value</th>
+                            <th width="20%">Status</th>
+                            <th width="25%">Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="metricsTableBody">
+                        <!-- Metrics rows will be inserted here -->
+                    </tbody>
+                </table>
+            </section>
+            
+            <!-- Visual Analysis Scores -->
+            <section class="card" id="visualScoresSection" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title">Visual Analysis Rubrics</h2>
+                </div>
+                
+                <div class="visual-grid" id="visualScores">
+                    <!-- Visual score items will be inserted here -->
+                </div>
+            </section>
+            
+            <!-- Errors Section -->
+            <section class="card" id="errorsSection" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title">Component Errors</h2>
+                </div>
+                
+                <div id="errorsList">
+                    <!-- Error details will be inserted here -->
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        // Global configuration and state
+        let CONFIG = {};
+        let currentUser = null;
+        let accessToken = null;
+        let currentTaskId = null;
+        let pollInterval = null;
+        
+        // Component definitions
+        const ASSESSMENT_COMPONENTS = {
+            pagespeed: { name: 'PageSpeed Analysis', icon: '⚡' },
+            security: { name: 'Security Analysis', icon: '🛡️' },
+            tech_scraper: { name: 'Technical Analysis', icon: '🔧' },
+            gbp: { name: 'Google Business Profile', icon: '🏢' },
+            screenshots: { name: 'Screenshots', icon: '📱' },
+            semrush: { name: 'SEO Analysis', icon: '🔍' },
+            visual_analysis: { name: 'Visual Analysis', icon: '🎨' },
+            score_calculation: { name: 'Business Impact', icon: '📊' }
+        };
+        
+        // Visual rubric labels
+        const VISUAL_RUBRIC_LABELS = [
+            'First Impression',
+            'Visual Hierarchy',
+            'Color & Contrast',
+            'Typography',
+            'Layout & Spacing',
+            'Mobile Responsiveness',
+            'CTAs & Conversion',
+            'Brand Consistency',
+            'Trust Signals'
+        ];
+        
+        // Initialize the app
+        async function initializeApp() {
+            try {
+                // Get configuration from backend
+                const response = await fetch('/api/v1/assessment/config');
+                CONFIG = await response.json();
+                
+                // Auth disabled for testing - automatically bypass authentication
+                bypassAuth();
+                
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                showAlert('error', 'Failed to initialize application. Please refresh the page.');
+            }
+        }
+        
+        // Google OAuth callback (disabled for testing)
+        async function handleGoogleAuth(response) {
+            // Auth disabled - skip authentication
+            bypassAuth();
+        }
+        
+        // Bypass authentication for testing
+        function bypassAuth() {
+            // Skip auth and show the assessment form directly
+            accessToken = 'test-token'; // Dummy token for testing
+            currentUser = {
+                name: 'Test User',
+                email: 'test@example.com',
+                picture: 'https://via.placeholder.com/40'
+            };
+            
+            localStorage.setItem('access_token', accessToken);
+            localStorage.setItem('user_data', JSON.stringify(currentUser));
+            
+            showAssessmentForm();
+            showAlert('info', 'Authentication bypassed for testing');
+        }
+        
+        // Show assessment form after authentication
+        function showAssessmentForm() {
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('assessmentFormSection').style.display = 'block';
+            
+            // Update user info
+            if (currentUser) {
+                document.getElementById('userPicture').src = currentUser.picture || '';
+                document.getElementById('userName').textContent = currentUser.name || '';
+                document.getElementById('userEmail').textContent = currentUser.email || '';
+            }
+        }
+        
+        // Sign out function
+        function signOut() {
+            // Auth disabled - just refresh for testing
+            showAlert('info', 'Refreshing page (auth disabled for testing)');
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+        }
+        
+        // Alert helper
+        function showAlert(type, message) {
+            const alertMap = {
+                'error': 'errorMessage',
+                'success': 'successMessage',
+                'info': 'infoMessage'
+            };
+            
+            const alertEl = document.getElementById(alertMap[type]);
+            if (alertEl) {
+                alertEl.textContent = message;
+                alertEl.classList.add('show');
+                setTimeout(() => {
+                    alertEl.classList.remove('show');
+                }, 5000);
+            }
+        }
+        
+        // Clear all alerts
+        function clearAlerts() {
+            ['errorMessage', 'successMessage', 'infoMessage'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('show');
+            });
+        }
+        
+        // Execute assessment
+        async function executeAssessment(url, businessName) {
+            if (!accessToken) {
+                throw new Error('Not authenticated');
+            }
+            
+            const response = await fetch(CONFIG.execute_endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                    url: url,
+                    business_name: businessName || null
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Assessment failed');
+            }
+            
+            return await response.json();
+        }
+        
+        // Poll for assessment status
+        async function pollAssessmentStatus(taskId) {
+            if (!accessToken) {
+                throw new Error('Not authenticated');
+            }
+            
+            const response = await fetch(`${CONFIG.status_endpoint}/${taskId}`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to get assessment status');
+            }
+            
+            return await response.json();
+        }
+        
+        // Update component status display
+        function updateComponentStatus(components) {
+            const container = document.getElementById('componentStatus');
+            container.innerHTML = '';
+            
+            let completedCount = 0;
+            const totalCount = Object.keys(ASSESSMENT_COMPONENTS).length;
+            
+            Object.entries(ASSESSMENT_COMPONENTS).forEach(([key, info]) => {
+                const status = components[key] || { status: 'pending' };
+                const statusValue = status.status?.value || status.status || 'pending';
+                
+                if (statusValue === 'success' || statusValue === 'failed') {
+                    completedCount++;
+                }
+                
+                const card = document.createElement('div');
+                card.className = 'component-card';
+                card.innerHTML = `
+                    <div class="component-header">
+                        <div>
+                            <span class="component-icon">${info.icon}</span>
+                            <span class="component-name">${info.name}</span>
+                        </div>
+                        <span class="status-indicator status-${statusValue}">
+                            ${statusValue === 'running' ? '<span class="spinner spinner-dark"></span>' : ''}
+                            ${statusValue}
+                        </span>
+                    </div>
+                    ${status.duration_ms ? `<div class="text-muted" style="font-size: var(--font-caption);">${status.duration_ms}ms</div>` : ''}
+                    ${status.error ? `<div style="color: var(--critical); font-size: var(--font-caption); margin-top: var(--space-xs);">${status.error}</div>` : ''}
+                `;
+                container.appendChild(card);
+            });
+            
+            // Update progress bar
+            const progress = (completedCount / totalCount) * 100;
+            document.getElementById('progressFill').style.width = `${progress}%`;
+        }
+        
+        // Monitor assessment progress
+        async function monitorAssessment(taskId, url) {
+            document.getElementById('progressSection').style.display = 'block';
+            updateComponentStatus({});
+            
+            const poll = async () => {
+                try {
+                    const status = await pollAssessmentStatus(taskId);
+                    
+                    if (status.status === 'completed' && status.result) {
+                        // Assessment completed
+                        clearInterval(pollInterval);
+                        displayResults(status.result, url);
+                        showAlert('success', 'Assessment completed successfully!');
+                        document.getElementById('progressSection').style.display = 'none';
+                        setLoading(false);
+                        
+                    } else if (status.status === 'failed') {
+                        // Assessment failed
+                        clearInterval(pollInterval);
+                        showAlert('error', `Assessment failed: ${status.error || 'Unknown error'}`);
+                        document.getElementById('progressSection').style.display = 'none';
+                        setLoading(false);
+                        
+                    } else if (status.status === 'in_progress' && status.progress) {
+                        // Update progress
+                        if (status.progress.components) {
+                            updateComponentStatus(status.progress.components);
+                        }
+                        showAlert('info', `Assessment in progress... ${status.progress.message || ''}`);
+                    }
+                    
+                } catch (error) {
+                    console.error('Polling error:', error);
+                    clearInterval(pollInterval);
+                    showAlert('error', 'Failed to monitor assessment progress');
+                    document.getElementById('progressSection').style.display = 'none';
+                    setLoading(false);
+                }
+            };
+            
+            // Start polling
+            pollInterval = setInterval(poll, 2000);
+            poll(); // First poll immediately
+        }
+        
+        // Display comprehensive results
+        function displayResults(result, url) {
+            const execution = result.execution || result;
+            
+            // Show results container
+            document.getElementById('resultsContainer').classList.add('show');
+            document.getElementById('assessmentUrl').textContent = url;
+            
+            // Display overall scores
+            displayOverallScores(execution);
+            
+            // Display detailed metrics
+            displayDetailedMetrics(execution);
+            
+            // Display visual scores if available
+            displayVisualScores(execution.visual_analysis_result);
+            
+            // Display errors if any
+            displayErrors(execution);
+            
+            // Scroll to results
+            document.getElementById('resultsContainer').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }
+        
+        // Display overall scores
+        function displayOverallScores(execution) {
+            const container = document.getElementById('overallScores');
+            container.innerHTML = '';
+            
+            const scores = [
+                { label: 'Overall Score', value: execution.overall_score || Math.round((execution.success_rate || 0) * 100), suffix: '' },
+                { label: 'Success Rate', value: Math.round((execution.success_rate || 0) * 100), suffix: '%' },
+                { label: 'Components', value: `${execution.successful_components || 0}/${execution.total_components || 0}`, suffix: '' },
+                { label: 'Duration', value: execution.total_duration_ms || 0, suffix: 'ms' },
+                { label: 'Total Cost', value: `$${((execution.total_cost_cents || 0) / 100).toFixed(4)}`, suffix: '' }
+            ];
+            
+            scores.forEach(score => {
+                const card = document.createElement('div');
+                card.className = 'score-card';
+                card.innerHTML = `
+                    <div class="score-value">${score.value}${score.suffix}</div>
+                    <div class="score-label">${score.label}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        // Display detailed metrics table
+        function displayDetailedMetrics(execution) {
+            const tbody = document.getElementById('metricsTableBody');
+            tbody.innerHTML = '';
+            
+            // PageSpeed Metrics
+            if (execution.pagespeed_result?.data) {
+                addMetricCategory(tbody, 'PageSpeed Performance');
+                const data = execution.pagespeed_result.data;
+                
+                addMetricRow(tbody, 'Desktop Score', data.desktop_score, getScoreStatus(data.desktop_score));
+                addMetricRow(tbody, 'Mobile Score', data.mobile_score, getScoreStatus(data.mobile_score));
+                
+                if (data.desktop_metrics) {
+                    addMetricRow(tbody, 'First Contentful Paint', formatTime(data.desktop_metrics.first_contentful_paint_ms), 
+                        getTimeStatus(data.desktop_metrics.first_contentful_paint_ms, 1800, 3000));
+                    addMetricRow(tbody, 'Largest Contentful Paint', formatTime(data.desktop_metrics.largest_contentful_paint_ms),
+                        getTimeStatus(data.desktop_metrics.largest_contentful_paint_ms, 2500, 4000));
+                    addMetricRow(tbody, 'Cumulative Layout Shift', data.desktop_metrics.cumulative_layout_shift?.toFixed(3),
+                        getCLSStatus(data.desktop_metrics.cumulative_layout_shift));
+                    addMetricRow(tbody, 'Total Blocking Time', formatTime(data.desktop_metrics.total_blocking_time_ms),
+                        getTimeStatus(data.desktop_metrics.total_blocking_time_ms, 200, 600));
+                    addMetricRow(tbody, 'Time to Interactive', formatTime(data.desktop_metrics.time_to_interactive_ms),
+                        getTimeStatus(data.desktop_metrics.time_to_interactive_ms, 3800, 7300));
+                }
+            }
+            
+            // Security Metrics
+            if (execution.security_result?.data) {
+                addMetricCategory(tbody, 'Security Analysis');
+                const data = execution.security_result.data;
+                
+                addMetricRow(tbody, 'SSL Valid', data.ssl_valid ? 'Yes' : 'No', data.ssl_valid ? 'good' : 'critical');
+                addMetricRow(tbody, 'HTTPS Enforced', data.https_redirect ? 'Yes' : 'No', data.https_redirect ? 'good' : 'warning');
+                addMetricRow(tbody, 'Security Headers Score', `${data.security_headers_score || 0}/100`, 
+                    getScoreStatus(data.security_headers_score));
+                
+                if (data.headers_present) {
+                    addMetricRow(tbody, 'HSTS Header', data.headers_present.hsts ? 'Present' : 'Missing',
+                        data.headers_present.hsts ? 'good' : 'warning');
+                    addMetricRow(tbody, 'CSP Header', data.headers_present.csp ? 'Present' : 'Missing',
+                        data.headers_present.csp ? 'good' : 'warning');
+                    addMetricRow(tbody, 'X-Frame-Options', data.headers_present.x_frame_options ? 'Present' : 'Missing',
+                        data.headers_present.x_frame_options ? 'good' : 'neutral');
+                }
+            }
+            
+            // Google Business Profile
+            if (execution.gbp_result?.data) {
+                addMetricCategory(tbody, 'Google Business Profile');
+                const data = execution.gbp_result.data;
+                
+                addMetricRow(tbody, 'Business Found', data.place_found ? 'Yes' : 'No', 
+                    data.place_found ? 'good' : 'warning');
+                    
+                if (data.place_found) {
+                    addMetricRow(tbody, 'Average Rating', data.rating?.toFixed(1) || 'N/A',
+                        getRatingStatus(data.rating));
+                    addMetricRow(tbody, 'Total Reviews', data.user_ratings_total || 0,
+                        data.user_ratings_total > 10 ? 'good' : 'warning');
+                    addMetricRow(tbody, 'Business Status', data.business_status || 'Unknown',
+                        data.business_status === 'OPERATIONAL' ? 'good' : 'warning');
+                }
+            }
+            
+            // SEMrush SEO Metrics
+            if (execution.semrush_result?.data) {
+                addMetricCategory(tbody, 'SEO Analysis (SEMrush)');
+                const data = execution.semrush_result.data;
+                
+                if (data.domain_info) {
+                    addMetricRow(tbody, 'Domain Authority', data.domain_info.domain_score || 'N/A',
+                        getScoreStatus(data.domain_info.domain_score));
+                    addMetricRow(tbody, 'Organic Traffic', formatNumber(data.domain_info.organic?.traffic || 0),
+                        data.domain_info.organic?.traffic > 1000 ? 'good' : 'warning');
+                    addMetricRow(tbody, 'Keywords Ranking', formatNumber(data.domain_info.organic?.keywords || 0),
+                        data.domain_info.organic?.keywords > 100 ? 'good' : 'warning');
+                }
+                
+                if (data.backlinks_info) {
+                    addMetricRow(tbody, 'Total Backlinks', formatNumber(data.backlinks_info.total || 0),
+                        data.backlinks_info.total > 100 ? 'good' : 'warning');
+                    addMetricRow(tbody, 'Referring Domains', formatNumber(data.backlinks_info.domains || 0),
+                        data.backlinks_info.domains > 50 ? 'good' : 'warning');
+                }
+            }
+        }
+        
+        // Display visual scores
+        function displayVisualScores(visualResult) {
+            if (!visualResult?.data?.scores) return;
+            
+            const section = document.getElementById('visualScoresSection');
+            const container = document.getElementById('visualScores');
+            
+            section.style.display = 'block';
+            container.innerHTML = '';
+            
+            visualResult.data.scores.forEach((score, index) => {
+                const item = document.createElement('div');
+                item.className = 'visual-score-item';
+                item.innerHTML = `
+                    <div class="visual-score-value ${getVisualScoreClass(score)}">${score}/9</div>
+                    <div class="visual-score-label">${VISUAL_RUBRIC_LABELS[index] || `Rubric ${index + 1}`}</div>
+                `;
+                container.appendChild(item);
+            });
+        }
+        
+        // Display errors
+        function displayErrors(execution) {
+            const errors = [];
+            
+            // Collect errors from all components
+            Object.entries(execution).forEach(([key, value]) => {
+                if (key.endsWith('_result') && value?.status?.value === 'failed') {
+                    errors.push({
+                        component: key.replace('_result', ''),
+                        error: value.error || 'Unknown error',
+                        details: value.error_details || null
+                    });
+                }
+            });
+            
+            if (errors.length === 0) {
+                document.getElementById('errorsSection').style.display = 'none';
+                return;
+            }
+            
+            const section = document.getElementById('errorsSection');
+            const container = document.getElementById('errorsList');
+            
+            section.style.display = 'block';
+            container.innerHTML = '';
+            
+            errors.forEach(error => {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-container';
+                errorDiv.innerHTML = `
+                    <div class="error-title">${ASSESSMENT_COMPONENTS[error.component]?.name || error.component}</div>
+                    <div>${error.error}</div>
+                    ${error.details ? `<pre class="error-stack">${error.details}</pre>` : ''}
+                `;
+                container.appendChild(errorDiv);
+            });
+        }
+        
+        // Helper functions
+        function addMetricCategory(tbody, title) {
+            const row = tbody.insertRow();
+            row.innerHTML = `<td colspan="4" class="metric-category">${title}</td>`;
+        }
+        
+        function addMetricRow(tbody, name, value, status, notes = '') {
+            const row = tbody.insertRow();
+            row.innerHTML = `
+                <td class="metric-name">${name}</td>
+                <td class="metric-value metric-${status}">${value || 'N/A'}</td>
+                <td><span class="status-indicator status-${status}">${status}</span></td>
+                <td class="text-muted">${notes}</td>
+            `;
+        }
+        
+        function getScoreStatus(score) {
+            if (score >= 90) return 'good';
+            if (score >= 50) return 'warning';
+            return 'critical';
+        }
+        
+        function getTimeStatus(ms, goodThreshold, poorThreshold) {
+            if (ms <= goodThreshold) return 'good';
+            if (ms <= poorThreshold) return 'warning';
+            return 'critical';
+        }
+        
+        function getCLSStatus(cls) {
+            if (cls <= 0.1) return 'good';
+            if (cls <= 0.25) return 'warning';
+            return 'critical';
+        }
+        
+        function getRatingStatus(rating) {
+            if (rating >= 4.5) return 'good';
+            if (rating >= 3.5) return 'warning';
+            return 'critical';
+        }
+        
+        function getVisualScoreClass(score) {
+            if (score >= 7) return 'metric-good';
+            if (score >= 5) return 'metric-warning';
+            return 'metric-critical';
+        }
+        
+        function formatTime(ms) {
+            if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+            return `${Math.round(ms)}ms`;
+        }
+        
+        function formatNumber(num) {
+            return num.toLocaleString();
+        }
+        
+        function setLoading(isLoading) {
+            const btn = document.getElementById('analyzeBtn');
+            const btnText = btn.querySelector('.btn-text');
+            const loading = btn.querySelector('.loading');
+            
+            if (isLoading) {
+                btnText.style.display = 'none';
+                loading.classList.add('show');
+                btn.disabled = true;
+            } else {
+                btnText.style.display = 'inline';
+                loading.classList.remove('show');
+                btn.disabled = false;
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('signOutBtn').addEventListener('click', signOut);
+        
+        document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = document.getElementById('websiteUrl').value.trim();
+            const businessName = document.getElementById('businessName').value.trim();
+            
+            if (!url) {
+                showAlert('error', 'Please enter a valid URL');
+                return;
+            }
+            
+            // Validate URL format
+            try {
+                new URL(url);
+            } catch {
+                showAlert('error', 'Please enter a valid URL (including https://)');
+                return;
+            }
+            
+            if (!accessToken) {
+                showAlert('error', 'Please sign in first');
+                return;
+            }
+            
+            clearAlerts();
+            setLoading(true);
+            
+            try {
+                showAlert('info', 'Starting comprehensive website analysis...');
+                
+                // Execute assessment
+                const assessmentResponse = await executeAssessment(url, businessName);
+                currentTaskId = assessmentResponse.task_id;
+                
+                showAlert('info', `Assessment started (Task ID: ${currentTaskId})`);
+                
+                // Monitor progress
+                await monitorAssessment(currentTaskId, url);
+                
+            } catch (error) {
+                console.error('Assessment failed:', error);
+                setLoading(false);
+                showAlert('error', error.message || 'Assessment failed. Please try again.');
+            }
+        });
+        
+        // Auto-format URL
+        document.getElementById('websiteUrl').addEventListener('blur', (e) => {
+            let url = e.target.value.trim();
+            if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+                e.target.value = 'https://' + url;
+            }
+        });
+        
+        // Make handleGoogleAuth globally available
+        window.handleGoogleAuth = handleGoogleAuth;
+        
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>

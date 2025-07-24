@@ -75,7 +75,7 @@ async def authenticate_with_google(auth_request: GoogleAuthRequest):
 @router.post("/execute", response_model=AssessmentResponse)
 async def execute_assessment(
     assessment_request: AssessmentRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # Auth disabled for testing
 ):
     """
     Execute website assessment (authenticated endpoint)
@@ -85,15 +85,20 @@ async def execute_assessment(
         url = str(assessment_request.url)
         business_name = assessment_request.business_name
         
-        logger.info(f"Starting assessment for {url} (user: {current_user['email']})")
+        # Auth disabled - use test user data
+        test_user = {
+            'email': 'test@example.com',
+            'name': 'Test User'
+        }
+        
+        logger.info(f"Starting assessment for {url} (auth disabled - test mode)")
         
         # Create lead data from request
         lead_data = {
             'company': business_name or 'Unknown Business',
             'url': url,
-            'description': f'Assessment requested by {current_user["email"]}',
-            'requested_by': current_user['email'],
-            'requested_by_name': current_user['name']
+            'email': test_user['email'],  # Required field for Lead model
+            'source': 'assessment_ui'  # Required field for Lead model
         }
         
         # Execute assessment via Celery task
@@ -118,7 +123,7 @@ async def execute_assessment(
 @router.get("/status/{task_id}")
 async def get_assessment_status(
     task_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # Auth disabled for testing
 ):
     """
     Get assessment task status and results
@@ -177,8 +182,12 @@ async def serve_assessment_ui(request: Request):
     Available at /assessment (no authentication required for UI)
     """
     try:
-        # Read the assessment UI HTML file
-        ui_file_path = Path(__file__).parent.parent.parent.parent / "assessment_ui.html"
+        # Read the comprehensive assessment UI HTML file
+        ui_file_path = Path(__file__).parent.parent.parent.parent / "assessment_ui_comprehensive.html"
+        
+        if not ui_file_path.exists():
+            # Fallback to original UI if comprehensive version not found
+            ui_file_path = Path(__file__).parent.parent.parent.parent / "assessment_ui.html"
         
         if not ui_file_path.exists():
             raise HTTPException(

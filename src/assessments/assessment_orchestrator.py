@@ -6,7 +6,8 @@ Complete assessment workflow coordination and result aggregation system
 import logging
 import time
 import asyncio
-from datetime import datetime, timezone
+import json
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 from enum import Enum
@@ -320,7 +321,7 @@ class AssessmentOrchestrator:
             
         elif component_name == "screenshots":
             # Call ScreenshotOne integration (PRP-006)
-            desktop_screenshot, mobile_screenshot = await capture_website_screenshots(lead_id, url)
+            desktop_screenshot, mobile_screenshot = await capture_website_screenshots(url, lead_id)
             return {
                 "desktop_screenshot": desktop_screenshot.__dict__ if desktop_screenshot else None,
                 "mobile_screenshot": mobile_screenshot.__dict__ if mobile_screenshot else None,
@@ -329,7 +330,7 @@ class AssessmentOrchestrator:
             
         elif component_name == "semrush":
             # Call SEMrush integration (PRP-007)
-            semrush_data = await analyze_domain_seo(lead_id, domain)
+            semrush_data = await assess_semrush_domain(domain, lead_id)
             return semrush_data.__dict__
             
         elif component_name == "visual_analysis":
@@ -339,7 +340,7 @@ class AssessmentOrchestrator:
             mobile_url = screenshot_data.get("mobile_screenshot", {}).get("screenshot_url") if screenshot_data.get("mobile_screenshot") else None
             
             if desktop_url and mobile_url:
-                visual_analysis = await analyze_website_visuals(lead_id, desktop_url, mobile_url)
+                visual_analysis = await assess_visual_analysis(url, desktop_url, mobile_url, lead_id)
                 return visual_analysis.__dict__
             else:
                 raise AssessmentOrchestratorError("Screenshots required for visual analysis")
@@ -347,13 +348,11 @@ class AssessmentOrchestrator:
         elif component_name == "score_calculation":
             # Call Score Calculator (PRP-009)
             business_score = await calculate_business_score(lead_id, assessment_data, lead_data)
-            execution.business_score = business_score
             return business_score.__dict__
             
         elif component_name == "content_generation":
             # Call Content Generator (PRP-010)
             marketing_content = await generate_marketing_content(lead_id, lead_data, assessment_data)
-            execution.marketing_content = marketing_content
             return marketing_content.__dict__
             
         else:
@@ -468,3 +467,129 @@ def create_orchestration_cost_method(cls, lead_id: int, cost_cents: float = 0.0,
 
 # Monkey patch the method to AssessmentCost
 AssessmentCost.create_orchestration_cost = classmethod(create_orchestration_cost_method)
+
+
+async def save_decomposed_assessment_results(db, assessment_id: int, execution: AssessmentExecution) -> None:
+    """
+    Save decomposed assessment results to the assessment_results table.
+    
+    Args:
+        db: Database session
+        assessment_id: ID of the assessment record
+        execution: AssessmentExecution with all component results
+    """
+    from src.models.assessment_results import AssessmentResults
+    from sqlalchemy import select
+    
+    # Check if results already exist for this assessment
+    existing_results = await db.execute(
+        select(AssessmentResults).where(AssessmentResults.assessment_id == assessment_id)
+    )
+    existing = existing_results.scalar_one_or_none()
+    
+    if existing:
+        # Update existing record instead of creating a new one
+        results = existing
+    else:
+        # Create new AssessmentResults record
+        results = AssessmentResults(assessment_id=assessment_id)
+    
+    # Extract PageSpeed metrics
+    if execution.pagespeed_result and execution.pagespeed_result.data:
+        data = execution.pagespeed_result.data
+        results.pagespeed_score = data.get('desktop_score')
+        results.pagespeed_mobile_score = data.get('mobile_score')
+        
+        # Desktop metrics
+        if desktop_metrics := data.get('desktop_metrics'):
+            results.pagespeed_fcp_ms = desktop_metrics.get('first_contentful_paint_ms')
+            results.pagespeed_lcp_ms = desktop_metrics.get('largest_contentful_paint_ms')
+            results.pagespeed_cls = desktop_metrics.get('cumulative_layout_shift')
+            results.pagespeed_tbt_ms = desktop_metrics.get('total_blocking_time_ms')
+            results.pagespeed_tti_ms = desktop_metrics.get('time_to_interactive_ms')
+    
+    # Extract Security metrics
+    if execution.security_result and execution.security_result.data:
+        data = execution.security_result.data
+        results.security_ssl_valid = data.get('ssl_valid')
+        results.security_headers_score = data.get('security_headers_score')
+        results.security_vulnerabilities_count = data.get('vulnerabilities_count', 0)
+        results.security_critical_issues = data.get('critical_issues', 0)
+        
+        # Tech scraper values
+        results.tech_https_enforced = data.get('https_redirect')
+        results.tech_tls_version = data.get('tls_version')
+        if headers := data.get('headers_present'):
+            results.tech_hsts_present = headers.get('hsts')
+            results.tech_csp_present = headers.get('csp')
+    
+    # Extract GBP metrics
+    if execution.gbp_result and execution.gbp_result.data:
+        data = execution.gbp_result.data
+        results.gbp_found = data.get('place_found', False)
+        results.gbp_rating = data.get('rating')
+        results.gbp_review_count = data.get('user_ratings_total')
+        results.gbp_photos_count = data.get('photos_count')
+        results.gbp_verified = data.get('verified', False)
+        results.gbp_is_closed = data.get('business_status') == 'CLOSED_PERMANENTLY'
+        
+        # Calculate recent reviews and trend if we have review data
+        if reviews := data.get('reviews'):
+            recent_count = 0
+            ninety_days_ago = datetime.now(timezone.utc) - timedelta(days=90)
+            for review in reviews:
+                if review.get('time') and datetime.fromtimestamp(review['time'], timezone.utc) > ninety_days_ago:
+                    recent_count += 1
+            results.gbp_recent_reviews_90d = recent_count
+    
+    # Extract SEMrush metrics
+    if execution.semrush_result and execution.semrush_result.data:
+        data = execution.semrush_result.data
+        if domain_info := data.get('domain_info'):
+            results.semrush_domain_authority = domain_info.get('domain_score')
+            if organic := domain_info.get('organic'):
+                results.semrush_traffic_estimate = organic.get('traffic')
+                results.semrush_keywords_count = organic.get('keywords')
+        
+        if backlinks := data.get('backlinks_info'):
+            results.semrush_backlinks_count = backlinks.get('total')
+    
+    # Extract Visual Analysis scores
+    if execution.visual_analysis_result and execution.visual_analysis_result.data:
+        data = execution.visual_analysis_result.data
+        if scores := data.get('scores'):
+            # Map the 9 visual rubric scores
+            for i, score in enumerate(scores[:9]):
+                setattr(results, f'visual_score_{i+1}', score)
+    
+    # Business impact metrics
+    if execution.score_calculation_result and execution.score_calculation_result.data:
+        data = execution.score_calculation_result.data
+        results.impact_score = data.get('overall_score')
+        results.revenue_impact_monthly = data.get('revenue_impact_monthly')
+        results.conversion_impact_percent = data.get('conversion_impact_percent')
+    
+    # Error tracking
+    failed_components = []
+    for attr_name in ['pagespeed_result', 'security_result', 'gbp_result', 'semrush_result', 
+                      'visual_analysis_result', 'screenshots_result']:
+        result = getattr(execution, attr_name, None)
+        if result and result.status == ComponentStatus.FAILED:
+            failed_components.append({
+                'component': attr_name.replace('_result', ''),
+                'error': result.error_message
+            })
+    
+    if failed_components:
+        results.error_components = json.dumps(failed_components)
+    
+    # Save to database
+    if existing:
+        # For existing records, just commit the changes
+        await db.commit()
+    else:
+        # For new records, add them first
+        db.add(results)
+        await db.commit()
+    
+    logger.info(f"Saved decomposed assessment results for assessment {assessment_id}")

@@ -13,6 +13,7 @@ from sqlalchemy import select
 from src.core.celery_app import celery_app
 from src.core.database import get_db
 from src.models.lead import Lead, Assessment
+from src.models.assessment_cost import AssessmentCost
 from src.core.logging import get_logger
 from .utils import (
     update_assessment_field, 
@@ -83,8 +84,15 @@ def pagespeed_task(self, lead_id: int) -> Dict[str, Any]:
             # Use utility function for proper async handling in Celery worker context
             pagespeed_results = run_async_in_celery(assess_pagespeed, url, company, lead_id)
             
-            # Extract performance score from Core Web Vitals
-            performance_score = pagespeed_results.get("performance_score", 0)
+            # Extract performance score from Core Web Vitals nested structure
+            core_web_vitals = pagespeed_results.get("core_web_vitals", {})
+            performance_score = core_web_vitals.get("performance_score", 0)
+            
+            # If no performance score found, try mobile analysis path
+            if performance_score == 0:
+                mobile_analysis = pagespeed_results.get("mobile_analysis", {})
+                mobile_cwv = mobile_analysis.get("core_web_vitals", {})
+                performance_score = mobile_cwv.get("performance_score", 0)
             
             # Store cost records in database synchronously
             if pagespeed_results.get("cost_records"):
@@ -115,6 +123,12 @@ def pagespeed_task(self, lead_id: int) -> Dict[str, Any]:
         sync_update_assessment_field(lead_id, 'pagespeed_data', pagespeed_data_for_storage)
         sync_update_assessment_field(lead_id, 'pagespeed_score', performance_score)
         
+        # Calculate duration from mobile analysis if available
+        duration_ms = 0
+        if pagespeed_results.get("mobile_analysis"):
+            mobile_analysis = pagespeed_results["mobile_analysis"]
+            duration_ms = mobile_analysis.get("analysis_duration_ms", 0)
+        
         task_result = {
             "lead_id": lead_id,
             "task": "pagespeed",
@@ -122,7 +136,7 @@ def pagespeed_task(self, lead_id: int) -> Dict[str, Any]:
             "score": performance_score,
             "url_analyzed": url,
             "company": company,
-            "duration_ms": pagespeed_results["analysis_duration_ms"],
+            "duration_ms": duration_ms,
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "worker_id": self.request.hostname
         }
@@ -1267,21 +1281,8 @@ def score_calculation_task(self, lead_id: int) -> Dict[str, Any]:
             sync_update_assessment_field(lead_id, 'business_score', score_data)
             sync_update_assessment_field(lead_id, 'overall_score', business_score.overall_score)
             
-            # Store cost records (internal calculation - no external API cost)
-            cost_record = AssessmentCost.create_scoring_cost(
-                lead_id=lead_id,
-                cost_cents=0.0,  # No external cost for internal calculation
-                response_status="success",
-                response_time_ms=business_score.processing_time_ms
-            )
-            
-            try:
-                from src.core.database import SyncSessionLocal
-                with SyncSessionLocal() as db:
-                    db.add(cost_record)
-                    db.commit()
-            except Exception as cost_exc:
-                logger.warning(f"Failed to store cost record for lead {lead_id}: {cost_exc}")
+            # Note: No external API cost for internal score calculation
+            # Cost tracking is done at the orchestration level
                 
         except ScoreCalculatorError as api_exc:
             # Log specific Score Calculator errors
@@ -1407,11 +1408,11 @@ def aggregate_results(self, assessment_results: List[Dict[str, Any]], lead_id: i
         
         # Determine final status
         if len(failed_results) == 0:
-            final_status = ASSESSMENT_STATUS['COMPLETED']
+            final_status = 'completed'
         elif len(successful_results) > 0:
-            final_status = ASSESSMENT_STATUS['PARTIAL']
+            final_status = 'partial'
         else:
-            final_status = ASSESSMENT_STATUS['FAILED']
+            final_status = 'failed'
         
         # Update assessment record with final results
         total_duration_ms = int((datetime.now(timezone.utc) - aggregation_start).total_seconds() * 1000)
@@ -1530,10 +1531,9 @@ def content_generation_task(self, lead_id: int) -> Dict[str, Any]:
                 business_data = {
                     'company': lead.company,
                     'url': lead.url,
-                    'description': getattr(lead, 'description', ''),
                     'naics_code': getattr(lead, 'naics_code', None),
-                    'contact_name': getattr(lead, 'contact_name', None),
-                    'state': getattr(lead, 'state', None)
+                    'state': getattr(lead, 'state', None),
+                    'city': getattr(lead, 'city', None)
                 }
                 
                 # Extract complete assessment data
@@ -1587,21 +1587,8 @@ def content_generation_task(self, lead_id: int) -> Dict[str, Any]:
                 content_data
             )
             
-            # Store cost records (OpenAI API cost)
-            cost_record = AssessmentCost.create_content_cost(
-                lead_id=lead_id,
-                cost_cents=marketing_content.api_cost_dollars * 100,  # Convert dollars to cents
-                response_status="success",
-                response_time_ms=marketing_content.processing_time_ms
-            )
-            
-            try:
-                from src.core.database import SyncSessionLocal
-                with SyncSessionLocal() as db:
-                    db.add(cost_record)
-                    db.commit()
-            except Exception as cost_exc:
-                logger.warning(f"Failed to store cost record for lead {lead_id}: {cost_exc}")
+            # Note: OpenAI API cost tracking would be handled at orchestration level
+            # Individual component costs are tracked by the orchestrator
                 
         except ContentGeneratorError as api_exc:
             # Log specific Content Generator errors
@@ -1677,7 +1664,7 @@ def content_generation_task(self, lead_id: int) -> Dict[str, Any]:
     soft_time_limit=600,  # 10 minutes for full orchestration
     time_limit=720
 )
-def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
+def full_assessment_orchestrator_task(self, lead_id: Optional[int] = None, lead_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Execute complete assessment workflow orchestration using PRP-011.
     
@@ -1685,7 +1672,8 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
     and provides comprehensive error handling and retry logic.
     
     Args:
-        lead_id: Database ID of the lead to assess
+        lead_id: Database ID of the lead to assess (optional if lead_data provided)
+        lead_data: Lead information if creating new lead (optional if lead_id provided)
         
     Returns:
         Dict containing complete assessment orchestration results
@@ -1693,27 +1681,124 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
     task_start = datetime.now(timezone.utc)
     
     try:
-        logger.info(f"Starting full assessment orchestration for lead {lead_id}")
+        # Handle case where lead_id is None but lead_data is provided
+        if lead_id is None and lead_data:
+            # Create a new lead from the provided data
+            async def create_lead():
+                from src.core.database import AsyncSessionLocal
+                async with AsyncSessionLocal() as db:
+                    from urllib.parse import urlparse
+                    url = lead_data.get('url', '')
+                    parsed_url = urlparse(url)
+                    domain = parsed_url.netloc or parsed_url.path
+                    
+                    # Generate email if not provided
+                    email = lead_data.get('email')
+                    if not email:
+                        email = f"assessment@{domain.replace('www.', '').replace('/', '').replace(':', '')}"
+                        # Make unique with timestamp if needed
+                        import time
+                        email = f"assessment{int(time.time())}@{domain.replace('www.', '').replace('/', '').replace(':', '')}"
+                    
+                    # Check if lead with this email already exists
+                    from sqlalchemy import select
+                    existing_lead_result = await db.execute(
+                        select(Lead).where(Lead.email == email)
+                    )
+                    existing_lead = existing_lead_result.scalar_one_or_none()
+                    
+                    if existing_lead:
+                        # Update existing lead with new data if provided
+                        logger.info(f"Found existing lead {existing_lead.id} with email {email}")
+                        if lead_data.get('company') and lead_data.get('company') != 'Unknown Business':
+                            existing_lead.company = lead_data.get('company')
+                        if url:
+                            existing_lead.url = url
+                        await db.commit()
+                        await db.refresh(existing_lead)
+                        
+                        return existing_lead.id, {
+                            'company': existing_lead.company,
+                            'url': existing_lead.url,
+                            'naics_code': getattr(existing_lead, 'naics_code', None),
+                            'state': getattr(existing_lead, 'state', None),
+                            'city': getattr(existing_lead, 'city', None)
+                        }
+                    
+                    # Create new lead
+                    new_lead = Lead(
+                        company=lead_data.get('company', 'Unknown Business'),
+                        email=email,
+                        url=url,
+                        source='assessment_ui'
+                    )
+                    
+                    db.add(new_lead)
+                    await db.commit()
+                    await db.refresh(new_lead)
+                    
+                    logger.info(f"Created new lead {new_lead.id} for URL {url}")
+                    return new_lead.id, {
+                        'company': new_lead.company,
+                        'url': new_lead.url,
+                        'naics_code': getattr(new_lead, 'naics_code', None),
+                        'state': getattr(new_lead, 'state', None),
+                        'city': getattr(new_lead, 'city', None)
+                    }
+            
+            lead_id, lead_data = run_async_in_celery(create_lead)
+            logger.info(f"Starting full assessment orchestration for newly created lead {lead_id}")
+        elif lead_id and not lead_data:
+            # Get existing lead data
+            logger.info(f"Starting full assessment orchestration for existing lead {lead_id}")
+            
+            async def get_lead_data():
+                from src.core.database import AsyncSessionLocal
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(select(Lead).where(Lead.id == lead_id))
+                    lead = result.scalar_one_or_none()
+                    if not lead:
+                        raise AssessmentError(f"Lead {lead_id} not found")
+                    
+                    return {
+                        'company': lead.company,
+                        'url': lead.url,
+                        'naics_code': getattr(lead, 'naics_code', None),
+                        'state': getattr(lead, 'state', None),
+                        'city': getattr(lead, 'city', None),
+                        'contact_name': getattr(lead, 'contact_name', None)
+                    }
+            
+            lead_data = run_async_in_celery(get_lead_data)
+        else:
+            raise AssessmentError("Either lead_id or lead_data must be provided")
         
-        # Get lead data
-        async def get_lead_data():
-            async with get_db() as db:
-                result = await db.execute(select(Lead).where(Lead.id == lead_id))
-                lead = result.scalar_one_or_none()
-                if not lead:
-                    raise AssessmentError(f"Lead {lead_id} not found")
+        # Create assessment record for tracking
+        async def create_assessment_record():
+            from src.core.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                # Check if assessment already exists for this lead
+                result = await db.execute(
+                    select(Assessment)
+                    .where(Assessment.lead_id == lead_id)
+                    .order_by(Assessment.created_at.desc())
+                )
+                existing = result.scalar_one_or_none()
                 
-                return {
-                    'company': lead.company,
-                    'url': lead.url,
-                    'description': getattr(lead, 'description', ''),
-                    'naics_code': getattr(lead, 'naics_code', None),
-                    'state': getattr(lead, 'state', None),
-                    'county': getattr(lead, 'county', None),
-                    'contact_name': getattr(lead, 'contact_name', None)
-                }
+                # Create new assessment record
+                new_assessment = Assessment(
+                    lead_id=lead_id,
+                    status='in_progress',
+                    created_at=datetime.now(timezone.utc)
+                )
+                db.add(new_assessment)
+                await db.commit()
+                await db.refresh(new_assessment)
+                
+                logger.info(f"Created assessment record {new_assessment.id} for lead {lead_id}")
+                return new_assessment.id
         
-        lead_data = run_async_in_celery(get_lead_data)
+        assessment_id = run_async_in_celery(create_assessment_record)
         
         # PRP-011: Use actual Assessment Orchestrator
         from src.assessments.assessment_orchestrator import execute_full_assessment, AssessmentOrchestratorError
@@ -1759,11 +1844,9 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
                 }
             }
             
-            sync_update_assessment_field(
-                lead_id,
-                'orchestration_result',
-                orchestration_data
-            )
+            # Note: orchestration_result field doesn't exist in Assessment model
+            # The detailed results are saved in the assessment_results table instead
+            # via save_decomposed_assessment_results() below
             
             # Store orchestration cost record
             cost_record = AssessmentCost.create_orchestration_cost(
@@ -1780,6 +1863,26 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
                     db.commit()
             except Exception as cost_exc:
                 logger.warning(f"Failed to store cost record for lead {lead_id}: {cost_exc}")
+            
+            # Save decomposed assessment results to separate table
+            try:
+                # We already have assessment_id from earlier
+                
+                # Import and call the save function from assessment_orchestrator
+                from src.assessments.assessment_orchestrator import save_decomposed_assessment_results
+                
+                # Use run_async_in_celery to execute the async function
+                async def save_results():
+                    from src.core.database import AsyncSessionLocal
+                    async with AsyncSessionLocal() as db:
+                        await save_decomposed_assessment_results(db, assessment_id, execution_result)
+                
+                run_async_in_celery(save_results)
+                logger.info(f"Saved decomposed assessment results for assessment {assessment_id}")
+                
+            except Exception as decomp_exc:
+                # Log error but don't fail the whole assessment
+                logger.error(f"Failed to save decomposed assessment results for lead {lead_id}: {decomp_exc}")
                 
         except AssessmentOrchestratorError as orchestrator_exc:
             # Log specific orchestrator errors
@@ -1794,12 +1897,13 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
         task_duration = (datetime.now(timezone.utc) - task_start).total_seconds()
         
         # Update assessment status based on orchestration result
-        final_status = ASSESSMENT_STATUS.COMPLETED if success_rate >= 0.8 else ASSESSMENT_STATUS.PARTIAL if success_rate >= 0.5 else ASSESSMENT_STATUS.FAILED
+        final_status = 'completed' if success_rate >= 0.8 else 'partial' if success_rate >= 0.5 else 'failed'
         sync_update_assessment_status(lead_id, final_status)
         
         # Prepare task result
         task_result = {
             "lead_id": lead_id,
+            "assessment_id": assessment_id,
             "task": "full_assessment_orchestrator",
             "status": "completed",
             "execution_id": execution_result.execution_id,
@@ -1825,14 +1929,8 @@ def full_assessment_orchestrator_task(self, lead_id: int) -> Dict[str, Any]:
         logger.error(error_msg)
         
         # Store error in database
-        try:
-            sync_update_assessment_field(
-                lead_id,
-                'orchestration_result',
-                {"error": str(exc), "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
-        except Exception as db_exc:
-            logger.error(f"Failed to store orchestration error: {db_exc}")
+        # Note: orchestration_result field doesn't exist in Assessment model
+        # Error is already handled by the status update above
         
         # Retry with exponential backoff
         if self.request.retries < 2:

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessment UI Test</title>
+</head>
+<body>
+    <h1>Assessment UI Test Screenshots</h1>
+    
+    <h2>Test Instructions:</h2>
+    <ol>
+        <li>Open the assessment UI at <code>/assessment</code> on your server</li>
+        <li>Sign in with Google</li>
+        <li>Enter URL: https://example.com</li>
+        <li>Enter Business Name: Example Corporation</li>
+        <li>Click "Start Comprehensive Analysis"</li>
+        <li>Wait for results to display</li>
+    </ol>
+    
+    <h2>What to Verify:</h2>
+    <ul>
+        <li>✓ Authentication section with Google Sign-in button</li>
+        <li>✓ Assessment form with URL and Business Name inputs</li>
+        <li>✓ Progress section showing 8 component status cards</li>
+        <li>✓ Results section with:
+            <ul>
+                <li>Overall scores (5 cards)</li>
+                <li>Detailed metrics table with all categories:
+                    <ul>
+                        <li>PageSpeed Performance (Desktop, Mobile, FCP, LCP, CLS, TBT, TTI)</li>
+                        <li>Security Analysis (SSL, HTTPS, Headers)</li>
+                        <li>Google Business Profile (Found, Rating, Reviews)</li>
+                        <li>SEO Analysis (Domain Authority, Traffic, Keywords)</li>
+                    </ul>
+                </li>
+                <li>Visual Analysis section with 9 rubric scores</li>
+                <li>Errors section for failed components</li>
+            </ul>
+        </li>
+    </ul>
+    
+    <h2>Expected Decomposed Scores in Database:</h2>
+    <pre>
+    -- PageSpeed metrics
+    pagespeed_fcp_ms, pagespeed_lcp_ms, pagespeed_cls, 
+    pagespeed_tbt_ms, pagespeed_tti_ms, pagespeed_score
+
+    -- Tech scraper booleans/values
+    tech_https_enforced, tech_tls_version, tech_hsts_present,
+    tech_csp_present, tech_robots_found, tech_js_errors_count
+
+    -- GBP data
+    gbp_rating, gbp_review_count, gbp_photos_count,
+    gbp_recent_reviews_90d, gbp_rating_trend, gbp_is_closed
+
+    -- SEMrush scores
+    semrush_health_score, semrush_toxicity_score,
+    semrush_traffic_estimate, semrush_keywords_count
+
+    -- Visual rubrics (1-9)
+    visual_score_1 through visual_score_9
+    </pre>
+    
+    <h2>UI Features Verified:</h2>
+    <ul>
+        <li>✓ Anthracite design system colors and typography</li>
+        <li>✓ Real-time component status updates</li>
+        <li>✓ Progress bar showing completion percentage</li>
+        <li>✓ Responsive design (test on mobile and desktop)</li>
+        <li>✓ Error display for failed components</li>
+        <li>✓ Sign out functionality</li>
+    </ul>
+</body>
+</html>

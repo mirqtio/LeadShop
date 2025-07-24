@@ -1,0 +1,24 @@
+{
+  "servers": {
+    "magic": {
+      "command": "magic",
+      "args": [],
+      "env": {
+        "MAGIC_API_KEY": "4cf0d435317aa7593ce4eae9b54c8b24124091aff90d5b846363b5a2ba646e45"
+      }
+    },
+    "sequential-thinking": {
+      "command": "sequential-thinking-mcp",
+      "args": [],
+      "env": {}
+    },
+    "context7": {
+      "command": "context7-mcp",
+      "args": []
+    },
+    "playwright": {
+      "command": "mcp-server-playwright",
+      "args": []
+    }
+  }
+}

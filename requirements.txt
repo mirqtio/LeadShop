@@ -76,6 +76,7 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-dateutil==2.8.2
 pytz==2023.3
+nest-asyncio==1.5.8
 
 # Testing & Development
 pytest==7.4.3

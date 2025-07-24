@@ -61,7 +61,7 @@ class PageSpeedClient:
         
         # HTTP client with timeout configuration
         self.client = httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0),  # 30-second timeout per PRP-003
+            timeout=httpx.Timeout(60.0),  # Increased to 60-second timeout for complex sites
             limits=httpx.Limits(max_keepalive_connections=10, max_connections=20)
         )
         
@@ -160,7 +160,7 @@ class PageSpeedClient:
         except httpx.TimeoutException:
             duration_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
             logger.error(f"PageSpeed API timeout after {duration_ms}ms", url=url)
-            raise PageSpeedError(f"API request timed out after 30 seconds for {url}")
+            raise PageSpeedError(f"API request timed out after 60 seconds for {url}")
             
         except httpx.RequestError as exc:
             logger.error(f"PageSpeed API request failed", url=url, error=str(exc))
