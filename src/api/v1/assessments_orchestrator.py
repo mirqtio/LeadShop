@@ -235,7 +235,7 @@ async def get_worker_stats() -> WorkerStatsResponse:
     summary="Scale Workers",
     description="Request worker scaling (Docker Compose deployment)"
 )
-async def scale_workers(worker_count: int = Field(..., description="Desired number of workers")) -> Dict[str, Any]:
+async def scale_workers(worker_count: int) -> Dict[str, Any]:
     """
     Request worker scaling for Docker Compose deployment.
     
