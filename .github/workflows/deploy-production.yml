@@ -113,7 +113,12 @@ jobs:
           
           # Stop existing containers to avoid port conflicts
           echo "Stopping existing containers..."
-          docker compose -f docker-compose.prod.yml down || true
+          docker compose -f docker-compose.prod.yml down --remove-orphans || true
+          
+          # Force stop any container using port 8000
+          echo "Killing any process on port 8000..."
+          docker ps -q --filter "publish=8000" | xargs -r docker stop || true
+          docker ps -aq --filter "publish=8000" | xargs -r docker rm || true
           
           # Build with timeout and better caching
           echo "Building containers with optimized settings..."
