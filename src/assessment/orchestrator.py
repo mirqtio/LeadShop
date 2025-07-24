@@ -11,25 +11,17 @@ from sqlalchemy import select, update
 from celery import group, chord
 from celery.exceptions import Retry
 
-from src.core.celery_app import celery_app
 from src.core.database import get_db
 from src.models.lead import Lead, Assessment
 from src.core.logging import get_logger
+from .utils import (
+    update_assessment_field,
+    update_assessment_status,
+    ASSESSMENT_STATUS,
+    AssessmentError
+)
 
 logger = get_logger(__name__)
-
-# Assessment status constants
-ASSESSMENT_STATUS = {
-    'PENDING': 'pending',
-    'IN_PROGRESS': 'in_progress', 
-    'COMPLETED': 'completed',
-    'FAILED': 'failed',
-    'PARTIAL': 'partial'
-}
-
-class AssessmentError(Exception):
-    """Custom exception for assessment failures"""
-    pass
 
 class AssessmentNotFoundError(AssessmentError):
     """Raised when assessment record not found"""
@@ -85,88 +77,8 @@ async def get_or_create_assessment(lead_id: int) -> Assessment:
         logger.error(f"Failed to get/create assessment for lead {lead_id}: {exc}")
         raise AssessmentError(f"Database error: {exc}")
 
-async def update_assessment_status(
-    lead_id: int, 
-    status: str, 
-    error_message: Optional[str] = None,
-    **kwargs
-) -> None:
-    """
-    Update assessment status and metadata
-    
-    Args:
-        lead_id: Database ID of the lead
-        status: New assessment status
-        error_message: Optional error message
-        **kwargs: Additional fields to update
-    """
-    try:
-        async with get_db() as db:
-            update_data = {
-                'status': status,
-                'updated_at': datetime.now(timezone.utc)
-            }
-            
-            if error_message:
-                update_data['error_message'] = error_message
-                
-            # Add any additional fields
-            update_data.update(kwargs)
-            
-            await db.execute(
-                update(Assessment)
-                .where(Assessment.lead_id == lead_id)
-                .values(**update_data)
-            )
-            await db.commit()
-            
-            logger.info(f"Updated assessment status for lead {lead_id}: {status}")
-            
-    except Exception as exc:
-        logger.error(f"Failed to update assessment status for lead {lead_id}: {exc}")
-        raise AssessmentError(f"Status update failed: {exc}")
-
-async def update_assessment_field(
-    lead_id: int,
-    field_name: str,
-    field_value: Any,
-    score_field: Optional[str] = None,
-    score_value: Optional[int] = None
-) -> None:
-    """
-    Update specific assessment field with optional score
-    
-    Args:
-        lead_id: Database ID of the lead
-        field_name: Name of the field to update
-        field_value: Value to store in the field
-        score_field: Optional score field name
-        score_value: Optional score value (0-100)
-    """
-    try:
-        async with get_db() as db:
-            update_data = {
-                field_name: field_value,
-                'updated_at': datetime.now(timezone.utc)
-            }
-            
-            if score_field and score_value is not None:
-                # Ensure score is within valid range
-                score_value = max(0, min(100, int(score_value)))
-                update_data[score_field] = score_value
-            
-            await db.execute(
-                update(Assessment)
-                .where(Assessment.lead_id == lead_id)
-                .values(**update_data)
-            )
-            await db.commit()
-            
-            logger.info(f"Updated assessment field {field_name} for lead {lead_id}")
-            
-    except Exception as exc:
-        logger.error(f"Failed to update assessment field {field_name} for lead {lead_id}: {exc}")
-        raise AssessmentError(f"Field update failed: {exc}")
+# Import celery_app here to avoid circular imports
+from src.core.celery_app import celery_app
 
 @celery_app.task(
     bind=True,

@@ -14,7 +14,7 @@ from src.core.celery_app import celery_app
 from src.core.database import get_db
 from src.models.lead import Lead, Assessment
 from src.core.logging import get_logger
-from .orchestrator import (
+from .utils import (
     update_assessment_field, 
     update_assessment_status, 
     ASSESSMENT_STATUS,

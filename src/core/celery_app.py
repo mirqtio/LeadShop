@@ -12,8 +12,8 @@ celery_app = Celery('assessment_orchestrator')
 # Load configuration from celery_config module
 celery_app.config_from_object('src.core.celery_config')
 
-# Auto-discover tasks from assessment modules
-celery_app.autodiscover_tasks(['src.assessment'], force=True)
+# Manually include tasks to avoid circular imports
+# Note: We cannot use autodiscover_tasks here due to circular import issues
 
 # Add periodic tasks for health monitoring
 from celery.schedules import crontab
