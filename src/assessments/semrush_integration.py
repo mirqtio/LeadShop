@@ -498,3 +498,20 @@ def create_semrush_cost_method(cls, lead_id: int, cost_cents: float = 10.0, resp
 
 # Monkey patch the method to AssessmentCost
 AssessmentCost.create_semrush_cost = classmethod(create_semrush_cost_method)
+
+# Add backward compatibility function for existing imports
+async def analyze_domain_seo(domain: str, lead_id: int) -> SEMrushResults:
+    """
+    Backward compatibility function for analyze_domain_seo.
+    
+    This function maintains compatibility with existing import statements
+    while using the new assess_semrush_domain function internally.
+    
+    Args:
+        domain: Domain to analyze
+        lead_id: Database ID of the lead
+        
+    Returns:
+        Complete SEMrush assessment results
+    """
+    return await assess_semrush_domain(domain, lead_id)
