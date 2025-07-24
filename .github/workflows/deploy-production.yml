@@ -111,11 +111,14 @@ jobs:
           echo "Updating Docker containers..."
           docker compose -f docker-compose.prod.yml pull
           
+          # Stop existing containers to avoid port conflicts
+          echo "Stopping existing containers..."
+          docker compose -f docker-compose.prod.yml down || true
+          
           # Build with timeout and better caching
           echo "Building containers with optimized settings..."
           timeout 600 docker compose -f docker-compose.prod.yml build --parallel || {
-            echo "Build timed out, trying restart existing containers..."
-            docker compose -f docker-compose.prod.yml restart
+            echo "Build timed out, using existing images..."
           }
           
           # Start containers
