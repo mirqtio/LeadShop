@@ -90,20 +90,30 @@ async def health_check():
     """Health check endpoint for Docker and load balancers"""
     try:
         # Test database connection
-        from src.core.database import get_db_session
-        async with get_db_session() as session:
+        from src.core.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
             await session.execute("SELECT 1")
         
-        # Test Redis connection
-        from src.core.cache import get_redis
-        redis = await get_redis()
-        await redis.ping()
+        db_status = "connected"
+        cache_status = "not_configured"
+        
+        # Test Redis connection if available
+        try:
+            from src.core.cache import get_redis
+            redis = await get_redis()
+            await redis.ping()
+            cache_status = "connected"
+        except ImportError:
+            cache_status = "not_configured"
+        except Exception as redis_error:
+            logger.warning(f"Redis health check failed: {redis_error}")
+            cache_status = "unavailable"
         
         return {
             "status": "healthy",
             "version": settings.APP_VERSION,
-            "database": "connected",
-            "cache": "connected",
+            "database": db_status,
+            "cache": cache_status,
             "timestamp": "now"
         }
     except Exception as e:
@@ -116,6 +126,16 @@ async def health_check():
                 "timestamp": "now"
             }
         )
+
+
+@app.get("/healthz", include_in_schema=False)
+async def simple_health_check():
+    """Simple health check endpoint that doesn't test external dependencies"""
+    return {
+        "status": "healthy",
+        "version": settings.APP_VERSION,
+        "timestamp": "now"
+    }
 
 
 @app.exception_handler(Exception)
