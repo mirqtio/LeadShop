@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Assessment - Database Row Display</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            font-size: 24px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        input {
+            width: 400px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 3px;
+        }
+        .db-row {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        .db-row h2 {
+            margin-top: 0;
+            color: #495057;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: #e9ecef;
+            font-weight: bold;
+        }
+        td {
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-word;
+            max-width: 600px;
+        }
+        .json-content {
+            white-space: pre-wrap;
+            font-size: 11px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f0f0f0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .screenshots {
+            margin-top: 30px;
+        }
+        .screenshot-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .screenshot-container img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .screenshot-label {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simple Assessment - Direct Database Display</h1>
+        
+        <form id="assessmentForm">
+            <div class="form-group">
+                <label>URL: </label>
+                <input type="url" id="url" name="url" required value="https://www.tesla.com">
+            </div>
+            
+            <div class="form-group">
+                <label>Business Name: </label>
+                <input type="text" id="businessName" name="businessName" value="Tesla">
+            </div>
+            
+            <button type="submit" id="submitBtn">Run Assessment</button>
+        </form>
+        
+        <div id="status" class="status" style="display: none;"></div>
+        
+        <div id="dbRow" class="db-row" style="display: none;">
+            <h2>PostgreSQL Assessment Row</h2>
+            <table id="dbTable">
+                <thead>
+                    <tr>
+                        <th>Column</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody id="dbTableBody">
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="decomposedMetrics" class="db-row" style="display: none;">
+            <h2>Decomposed Metrics (53 Individual Metrics)</h2>
+            <table id="metricsTable">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody id="metricsTableBody">
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="screenshots" class="screenshots" style="display: none;">
+            <h2>Screenshots</h2>
+            <div id="screenshotContainer"></div>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('assessmentForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusDiv = document.getElementById('status');
+        const dbRowDiv = document.getElementById('dbRow');
+        const dbTableBody = document.getElementById('dbTableBody');
+        const decomposedMetricsDiv = document.getElementById('decomposedMetrics');
+        const metricsTableBody = document.getElementById('metricsTableBody');
+        const screenshotsDiv = document.getElementById('screenshots');
+        const screenshotContainer = document.getElementById('screenshotContainer');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                url: document.getElementById('url').value,
+                business_name: document.getElementById('businessName').value
+            };
+            
+            // Reset UI
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Running...';
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Starting assessment...';
+            dbRowDiv.style.display = 'none';
+            decomposedMetricsDiv.style.display = 'none';
+            screenshotsDiv.style.display = 'none';
+            dbTableBody.innerHTML = '';
+            metricsTableBody.innerHTML = '';
+            screenshotContainer.innerHTML = '';
+            
+            try {
+                // Start assessment
+                const response = await fetch('/api/v1/simple-assessment/assess', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                statusDiv.textContent = 'Assessment completed!';
+                
+                // Display database row
+                if (data.db_row) {
+                    dbRowDiv.style.display = 'block';
+                    
+                    // Create table rows for each column
+                    Object.entries(data.db_row).forEach(([column, value]) => {
+                        const row = document.createElement('tr');
+                        
+                        const colCell = document.createElement('td');
+                        colCell.textContent = column;
+                        row.appendChild(colCell);
+                        
+                        const valCell = document.createElement('td');
+                        if (value === null) {
+                            valCell.textContent = 'NULL';
+                            valCell.style.color = '#999';
+                        } else if (typeof value === 'object') {
+                            // Special handling for pagespeed and security data
+                            if (column === 'pagespeed_data' && value.mobile_analysis) {
+                                const summary = document.createElement('div');
+                                summary.innerHTML = `
+                                    <strong>Mobile Score:</strong> ${value.mobile_analysis?.core_web_vitals?.performance_score || 'N/A'}<br>
+                                    <strong>Desktop Score:</strong> ${value.desktop_analysis?.core_web_vitals?.performance_score || 'N/A'}
+                                `;
+                                valCell.appendChild(summary);
+                                
+                                const details = document.createElement('details');
+                                details.innerHTML = '<summary>Full Data</summary>';
+                                const pre = document.createElement('pre');
+                                pre.className = 'json-content';
+                                pre.textContent = JSON.stringify(value, null, 2);
+                                details.appendChild(pre);
+                                valCell.appendChild(details);
+                            } else if (column === 'security_headers' && value.security_score !== undefined) {
+                                const summary = document.createElement('div');
+                                summary.innerHTML = `
+                                    <strong>Security Score:</strong> ${value.security_score}<br>
+                                    <strong>Has HTTPS:</strong> ${value.has_https ? 'Yes' : 'No'}<br>
+                                    <strong>Missing Headers:</strong> ${value.missing_headers?.length || 0}
+                                `;
+                                valCell.appendChild(summary);
+                                
+                                const details = document.createElement('details');
+                                details.innerHTML = '<summary>Full Data</summary>';
+                                const pre = document.createElement('pre');
+                                pre.className = 'json-content';
+                                pre.textContent = JSON.stringify(value, null, 2);
+                                details.appendChild(pre);
+                                valCell.appendChild(details);
+                            } else if (column === 'semrush_data' && value.domain_score !== undefined) {
+                                const summary = document.createElement('div');
+                                summary.innerHTML = `
+                                    <strong>Domain Score:</strong> ${value.domain_score || 'N/A'}<br>
+                                    <strong>Organic Traffic:</strong> ${value.organic_traffic || 'N/A'}<br>
+                                    <strong>Organic Keywords:</strong> ${value.organic_keywords || 'N/A'}
+                                `;
+                                valCell.appendChild(summary);
+                                
+                                const details = document.createElement('details');
+                                details.innerHTML = '<summary>Full Data</summary>';
+                                const pre = document.createElement('pre');
+                                pre.className = 'json-content';
+                                pre.textContent = JSON.stringify(value, null, 2);
+                                details.appendChild(pre);
+                                valCell.appendChild(details);
+                            } else if (column === 'gbp_data' && value.found !== undefined) {
+                                const summary = document.createElement('div');
+                                summary.innerHTML = `
+                                    <strong>Business Found:</strong> ${value.found ? 'Yes' : 'No'}<br>
+                                    ${value.business_name ? `<strong>Name:</strong> ${value.business_name}<br>` : ''}
+                                    ${value.rating ? `<strong>Rating:</strong> ${value.rating} ⭐<br>` : ''}
+                                `;
+                                valCell.appendChild(summary);
+                                
+                                const details = document.createElement('details');
+                                details.innerHTML = '<summary>Full Data</summary>';
+                                const pre = document.createElement('pre');
+                                pre.className = 'json-content';
+                                pre.textContent = JSON.stringify(value, null, 2);
+                                details.appendChild(pre);
+                                valCell.appendChild(details);
+                            } else if (column === 'decomposed_metrics') {
+                                // Skip decomposed_metrics in main table, we'll show them separately
+                                row.style.display = 'none';
+                            } else {
+                                const pre = document.createElement('pre');
+                                pre.className = 'json-content';
+                                pre.textContent = JSON.stringify(value, null, 2);
+                                valCell.appendChild(pre);
+                            }
+                        } else {
+                            valCell.textContent = String(value);
+                        }
+                        row.appendChild(valCell);
+                        
+                        dbTableBody.appendChild(row);
+                    });
+                    
+                    // Display decomposed metrics if available
+                    if (data.db_row.decomposed_metrics && Object.keys(data.db_row.decomposed_metrics).length > 0) {
+                        decomposedMetricsDiv.style.display = 'block';
+                        
+                        // Group metrics by category
+                        const categories = {
+                            'PageSpeed': [],
+                            'Security': [],
+                            'Google Business Profile': [],
+                            'Screenshots': [],
+                            'SEMrush': [],
+                            'Visual Assessment': [],
+                            'Content Quality': []
+                        };
+                        
+                        Object.entries(data.db_row.decomposed_metrics).forEach(([metric, value]) => {
+                            if (metric.toLowerCase().includes('pagespeed') || 
+                                ['First Contentful Paint', 'Largest Contentful Paint', 'Cumulative Layout Shift', 
+                                 'Total Blocking Time', 'Time to Interactive', 'Speed Index', 'Performance Score (runtime)'].includes(metric)) {
+                                categories['PageSpeed'].push({metric, value});
+                            } else if (metric.toLowerCase().includes('security') || metric.toLowerCase().includes('https') || 
+                                      metric.toLowerCase().includes('tls') || metric.toLowerCase().includes('hsts') || 
+                                      metric.toLowerCase().includes('csp') || metric.toLowerCase().includes('x-frame') ||
+                                      metric.toLowerCase().includes('robots') || metric.toLowerCase().includes('sitemap') ||
+                                      metric.toLowerCase().includes('broken') || metric.toLowerCase().includes('console')) {
+                                categories['Security'].push({metric, value});
+                            } else if (metric.toLowerCase().includes('gbp') || 
+                                      ['hours', 'review_count', 'rating', 'photos_count', 'total_reviews', 
+                                       'avg_rating', 'recent_90d', 'rating_trend', 'is_closed'].includes(metric)) {
+                                categories['Google Business Profile'].push({metric, value});
+                            } else if (metric.toLowerCase().includes('screenshot')) {
+                                categories['Screenshots'].push({metric, value});
+                            } else if (metric.toLowerCase().includes('semrush') || metric.includes('Site Health') || 
+                                      metric.includes('Backlink') || metric.includes('Organic Traffic') || 
+                                      metric.includes('Ranking Keywords') || metric.includes('Domain Authority')) {
+                                categories['SEMrush'].push({metric, value});
+                            } else if (metric.toLowerCase().includes('visual') || metric.includes('Accessibility') || 
+                                      metric.includes('Best-Practices') || metric.includes('SEO Score') || 
+                                      metric.includes('rubric')) {
+                                categories['Visual Assessment'].push({metric, value});
+                            } else if (metric.toLowerCase().includes('content') || metric.includes('Value Prop') || 
+                                      metric.includes('Contact Info') || metric.includes('CTA') || 
+                                      metric.includes('Social-Proof') || metric.includes('Brand Voice') || 
+                                      metric.includes('Spam')) {
+                                categories['Content Quality'].push({metric, value});
+                            }
+                        });
+                        
+                        // Display metrics by category
+                        Object.entries(categories).forEach(([category, metrics]) => {
+                            if (metrics.length > 0) {
+                                // Add category header
+                                const categoryRow = document.createElement('tr');
+                                categoryRow.innerHTML = `<td colspan="2" style="background: #e9ecef; font-weight: bold; padding: 10px;">${category}</td>`;
+                                metricsTableBody.appendChild(categoryRow);
+                                
+                                // Add metrics
+                                metrics.forEach(({metric, value}) => {
+                                    const row = document.createElement('tr');
+                                    
+                                    const metricCell = document.createElement('td');
+                                    metricCell.textContent = metric;
+                                    row.appendChild(metricCell);
+                                    
+                                    const valueCell = document.createElement('td');
+                                    if (value === null || value === undefined) {
+                                        valueCell.textContent = 'N/A';
+                                        valueCell.style.color = '#999';
+                                    } else if (typeof value === 'boolean') {
+                                        valueCell.textContent = value ? 'Yes' : 'No';
+                                        valueCell.style.color = value ? 'green' : 'red';
+                                    } else if (typeof value === 'object') {
+                                        valueCell.innerHTML = `<pre class="json-content">${JSON.stringify(value, null, 2)}</pre>`;
+                                    } else {
+                                        valueCell.textContent = String(value);
+                                        // Color code numeric values
+                                        if (typeof value === 'number') {
+                                            if (metric.includes('Score')) {
+                                                if (value >= 90) valueCell.style.color = 'green';
+                                                else if (value >= 50) valueCell.style.color = 'orange';
+                                                else valueCell.style.color = 'red';
+                                            }
+                                        }
+                                    }
+                                    row.appendChild(valueCell);
+                                    
+                                    metricsTableBody.appendChild(row);
+                                });
+                            }
+                        });
+                    }
+                }
+                
+                // Display screenshots
+                if (data.screenshots && data.screenshots.length > 0) {
+                    screenshotsDiv.style.display = 'block';
+                    
+                    data.screenshots.forEach(screenshot => {
+                        const container = document.createElement('div');
+                        container.className = 'screenshot-container';
+                        
+                        const label = document.createElement('div');
+                        label.className = 'screenshot-label';
+                        label.textContent = `${screenshot.viewport_type || 'Screenshot'} (${screenshot.viewport_width}x${screenshot.viewport_height})`;
+                        container.appendChild(label);
+                        
+                        if (screenshot.image_url) {
+                            const img = document.createElement('img');
+                            img.src = screenshot.image_url;
+                            img.alt = screenshot.viewport_type || 'Screenshot';
+                            container.appendChild(img);
+                        } else {
+                            const noImage = document.createElement('div');
+                            noImage.textContent = 'No image URL available';
+                            noImage.style.color = '#999';
+                            container.appendChild(noImage);
+                        }
+                        
+                        screenshotContainer.appendChild(container);
+                    });
+                }
+                
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.style.color = 'red';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Run Assessment';
+            }
+        });
+    </script>
+</body>
+</html>

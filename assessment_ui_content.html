@@ -1,0 +1,1101 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Assessment Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        form {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        input[type="url"] {
+            width: 300px;
+            padding: 8px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            background: #007cba;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #ccc;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .status.pending { background: #fff3cd; }
+        .status.completed { background: #d4edda; }
+        .status.error { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>Simple Assessment Test</h1>
+    
+    <form id="assessmentForm">
+        <div style="margin-bottom: 10px;">
+            <label for="url">Website URL:</label>
+            <input type="url" id="url" placeholder="https://example.com" required="" style="">
+        </div>
+        <div style="margin-bottom: 10px;">
+            <label for="businessName">Business Name:</label>
+            <input type="text" id="businessName" placeholder="Business Name (optional)" style="">
+        </div>
+        <div style="margin-bottom: 10px;">
+            <label for="address">Address:</label>
+            <input type="text" id="address" placeholder="Street Address (optional)" style="">
+        </div>
+        <div style="margin-bottom: 10px;">
+            <label for="city">City:</label>
+            <input type="text" id="city" placeholder="City (optional)" style="">
+            <label for="state" style="margin-left: 20px;">State:</label>
+            <input type="text" id="state" placeholder="State (optional)" style="width: 100px;">
+        </div>
+        <button type="submit" id="submitBtn">Run Assessment</button>
+    </form>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <div id="results" style="display: none;">
+        <h2>Assessment Results</h2>
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                    <th>Status</th>
+                    <th>Source</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const form = document.getElementById('assessmentForm');
+        const urlInput = document.getElementById('url');
+        const businessNameInput = document.getElementById('businessName');
+        const addressInput = document.getElementById('address');
+        const cityInput = document.getElementById('city');
+        const stateInput = document.getElementById('state');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const resultsBody = document.getElementById('resultsBody');
+        
+        let currentTaskId = null;
+        let statusInterval = null;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = urlInput.value.trim();
+            if (!url) return;
+            
+            const businessName = businessNameInput.value.trim() || 'Test Business';
+            const address = addressInput.value.trim() || null;
+            const city = cityInput.value.trim() || null;
+            const state = stateInput.value.trim() || null;
+            
+            // Reset UI
+            submitBtn.disabled = true;
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status pending';
+            statusDiv.textContent = 'Submitting assessment...';
+            resultsDiv.style.display = 'none';
+            
+            try {
+                // Submit assessment
+                const requestData = {
+                    url: url,
+                    business_name: businessName
+                };
+                
+                // Add optional fields if provided
+                if (address) requestData.address = address;
+                if (city) requestData.city = city;
+                if (state) requestData.state = state;
+                
+                const response = await fetch('/api/v1/simple-assessment/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('PageSpeed Response:', data);
+                
+                // Check if we got results immediately (PageSpeed-only mode)
+                if (data.status === 'success' && data.results) {
+                    statusDiv.className = 'status completed';
+                    statusDiv.textContent = 'Assessments completed!';
+                    
+                    // If we have an assessment_id, fetch results from DB
+                    if (data.results.assessment_id) {
+                        // Fetch results from database
+                        const dbResponse = await fetch(`/api/v1/simple-assessment/results/${data.results.assessment_id}`);
+                        if (dbResponse.ok) {
+                            const dbData = await dbResponse.json();
+                            console.log('Results from DB:', dbData);
+                            displayPageSpeedResults(dbData.pagespeed_data);
+                            displaySecurityResults(dbData.security_data);
+                            displayGBPResults(dbData.gbp_data, dbData.gbp_summary);
+                            displayScreenshotResults(dbData.screenshot_data);
+                            displayVisualAnalysisResults(dbData.visual_analysis_data);
+                            displaySEMrushResults(dbData.semrush_data);
+                            displayDecomposedScores(dbData.decomposed_scores);
+                        } else {
+                            // Fallback to API results
+                            displayPageSpeedResults(data.results.pagespeed_data);
+                            displaySecurityResults(data.results.security_data);
+                            displayGBPResults(data.results.gbp_data, data.results.gbp_summary);
+                            displayScreenshotResults(data.results.screenshot_data);
+                            displayVisualAnalysisResults(data.results.visual_analysis_data);
+                            displaySEMrushResults(data.results.semrush_data);
+                        }
+                    } else {
+                        // No assessment_id, use API results
+                        displayPageSpeedResults(data.results.pagespeed_data);
+                        displaySecurityResults(data.results.security_data);
+                        displayGBPResults(data.results.gbp_data, data.results.gbp_summary);
+                        displayScreenshotResults(data.results.screenshot_data);
+                        displayVisualAnalysisResults(data.results.visual_analysis_data);
+                        displaySEMrushResults(data.results.semrush_data);
+                    }
+                    submitBtn.disabled = false;
+                } else if (data.status === 'error') {
+                    // Display error
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `Assessment failed: ${data.results.error || 'Unknown error'}`;
+                    submitBtn.disabled = false;
+                } else {
+                    // Shouldn't happen in PageSpeed-only mode
+                    statusDiv.textContent = 'Unexpected response format';
+                    submitBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                console.error('Error submitting assessment:', error);
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `Error: ${error.message}`;
+                submitBtn.disabled = false;
+            }
+        });
+        
+        function displayPageSpeedResults(pagespeedData) {
+            if (!pagespeedData) {
+                resultsBody.innerHTML = '<tr><td colspan="5">No PageSpeed data available</td></tr>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            let html = '';
+            
+            // Display mobile analysis
+            if (pagespeedData.mobile_analysis && pagespeedData.mobile_analysis.core_web_vitals) {
+                const cwv = pagespeedData.mobile_analysis.core_web_vitals;
+                
+                html += '<tr><td colspan="5" style="background: #e3f2fd; font-weight: bold;">Mobile Analysis</td></tr>';
+                
+                if (cwv.first_contentful_paint !== undefined) {
+                    html += createMetricRow('First Contentful Paint (FCP)', `${cwv.first_contentful_paint}ms`, 'PageSpeed Mobile');
+                }
+                if (cwv.largest_contentful_paint !== undefined) {
+                    html += createMetricRow('Largest Contentful Paint (LCP)', `${cwv.largest_contentful_paint}ms`, 'PageSpeed Mobile');
+                }
+                if (cwv.cumulative_layout_shift !== undefined) {
+                    html += createMetricRow('Cumulative Layout Shift (CLS)', cwv.cumulative_layout_shift.toFixed(3), 'PageSpeed Mobile');
+                }
+                if (cwv.total_blocking_time !== undefined) {
+                    html += createMetricRow('Total Blocking Time (TBT)', `${cwv.total_blocking_time}ms`, 'PageSpeed Mobile');
+                }
+                if (cwv.time_to_interactive !== undefined) {
+                    html += createMetricRow('Time to Interactive (TTI)', `${cwv.time_to_interactive}ms`, 'PageSpeed Mobile');
+                }
+                if (cwv.performance_score !== undefined) {
+                    html += createMetricRow('Performance Score', `${cwv.performance_score}/100`, 'PageSpeed Mobile');
+                }
+            }
+            
+            // Display desktop analysis
+            if (pagespeedData.desktop_analysis && pagespeedData.desktop_analysis.core_web_vitals) {
+                const cwv = pagespeedData.desktop_analysis.core_web_vitals;
+                
+                html += '<tr><td colspan="5" style="background: #e8f5e9; font-weight: bold;">Desktop Analysis</td></tr>';
+                
+                if (cwv.performance_score !== undefined) {
+                    html += createMetricRow('Desktop Performance Score', `${cwv.performance_score}/100`, 'PageSpeed Desktop');
+                }
+            }
+            
+            // Add raw JSON display for debugging
+            html += '<tr><td colspan="5" style="background: #f5f5f5; font-weight: bold;">Raw PageSpeed Data</td></tr>';
+            html += `<tr><td colspan="5"><pre style="font-size: 11px; overflow: auto; max-height: 400px;">${JSON.stringify(pagespeedData, null, 2)}</pre></td></tr>`;
+            
+            resultsBody.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+        
+        function createMetricRow(metric, value, source) {
+            const status = getMetricStatus(metric, value);
+            return `
+                <tr>
+                    <td>${metric}</td>
+                    <td>${value}</td>
+                    <td>${status}</td>
+                    <td>${source}</td>
+                    <td>${getMetricDescription(metric)}</td>
+                </tr>
+            `;
+        }
+        
+        function getMetricStatus(metric, value) {
+            // Simple status logic based on metric type
+            if (metric.includes('Score')) {
+                const score = parseInt(value);
+                if (score >= 90) return 'Good';
+                if (score >= 50) return 'Needs Improvement';
+                return 'Poor';
+            }
+            return 'Measured';
+        }
+        
+        function getMetricDescription(metric) {
+            const descriptions = {
+                'First Contentful Paint (FCP)': 'Time when the first text or image is painted',
+                'Largest Contentful Paint (LCP)': 'Time when the largest content element becomes visible',
+                'Cumulative Layout Shift (CLS)': 'Measure of visual stability',
+                'Total Blocking Time (TBT)': 'Total time when the main thread was blocked',
+                'Time to Interactive (TTI)': 'Time when the page becomes fully interactive',
+                'Performance Score': 'Overall performance score (0-100)',
+                'Security Score': 'Overall security rating (0-100)',
+                'HTTPS': 'Site uses secure HTTPS protocol',
+                'Security Headers': 'HTTP security headers implemented'
+            };
+            return descriptions[metric] || 'Performance metric';
+        }
+        
+        function displaySecurityResults(securityData) {
+            if (!securityData) {
+                return;
+            }
+            
+            let html = resultsBody.innerHTML || '';
+            
+            // Add security section
+            html += '<tr><td colspan="5" style="background: #ffebee; font-weight: bold;">Security Analysis</td></tr>';
+            
+            // Security score
+            const scoreColor = securityData.security_score >= 80 ? '#4caf50' : 
+                             securityData.security_score >= 60 ? '#ff9800' : '#f44336';
+            html += `<tr>
+                <td>Security Score</td>
+                <td style="font-weight: bold; color: ${scoreColor}">${securityData.security_score || 0}/100</td>
+                <td>${getSecurityGrade(securityData.security_score)}</td>
+                <td>Security Analysis</td>
+                <td>Overall security assessment score</td>
+            </tr>`;
+            
+            // HTTPS and SSL Details
+            html += createMetricRow('HTTPS', securityData.has_https ? 'Enabled ✓' : 'Not Enabled ✗', 'Security Analysis');
+            
+            if (securityData.ssl_grade) {
+                html += createMetricRow('SSL Grade', securityData.ssl_grade, 'Security Analysis');
+            }
+            
+            // SSL Certificate Details (if available)
+            if (securityData.ssl_issuer || securityData.ssl_expires || securityData.ssl_protocol) {
+                html += '<tr><td colspan="5" style="background: #e8f5e9; font-weight: bold;">SSL Certificate Details</td></tr>';
+                
+                if (securityData.ssl_issuer) {
+                    html += createMetricRow('Certificate Issuer', securityData.ssl_issuer, 'SSL Certificate');
+                }
+                
+                if (securityData.ssl_expires) {
+                    const expiryDate = new Date(securityData.ssl_expires);
+                    const daysUntilExpiry = Math.floor((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+                    const expiryColor = daysUntilExpiry > 30 ? 'green' : daysUntilExpiry > 7 ? 'orange' : 'red';
+                    html += `<tr>
+                        <td>Certificate Expiration</td>
+                        <td style="color: ${expiryColor}">${expiryDate.toLocaleDateString()} (${daysUntilExpiry} days)</td>
+                        <td>${daysUntilExpiry > 30 ? 'Good' : daysUntilExpiry > 7 ? 'Warning' : 'Critical'}</td>
+                        <td>SSL Certificate</td>
+                        <td>SSL certificate expiration date</td>
+                    </tr>`;
+                }
+                
+                if (securityData.ssl_protocol) {
+                    html += createMetricRow('SSL Protocol', securityData.ssl_protocol, 'SSL Certificate');
+                }
+                
+                if (securityData.ssl_cipher_suite) {
+                    html += createMetricRow('Cipher Suite', securityData.ssl_cipher_suite, 'SSL Certificate');
+                }
+            }
+            
+            // Security headers detailed view
+            if (securityData.security_headers) {
+                html += '<tr><td colspan="5" style="background: #e3f2fd; font-weight: bold;">Security Headers Analysis</td></tr>';
+                
+                const headerCount = Object.values(securityData.security_headers).filter(h => h.present).length;
+                const totalHeaders = Object.keys(securityData.security_headers).length;
+                html += createMetricRow('Headers Implemented', `${headerCount}/${totalHeaders}`, 'Security Headers');
+                
+                // Show individual headers with their values
+                const importantHeaders = [
+                    'strict-transport-security',
+                    'x-content-type-options',
+                    'x-frame-options',
+                    'content-security-policy',
+                    'x-xss-protection',
+                    'referrer-policy'
+                ];
+                
+                for (const [headerName, headerData] of Object.entries(securityData.security_headers)) {
+                    if (importantHeaders.includes(headerName.toLowerCase())) {
+                        const displayName = headerName.split('-').map(w => 
+                            w.charAt(0).toUpperCase() + w.slice(1)
+                        ).join('-');
+                        
+                        if (headerData.present) {
+                            const severityColor = headerData.severity === 'high' ? '#d32f2f' : 
+                                               headerData.severity === 'medium' ? '#f57c00' : '#388e3c';
+                            html += `<tr>
+                                <td>${displayName}</td>
+                                <td style="color: green">✓ Present</td>
+                                <td style="color: ${headerData.is_secure !== false ? 'green' : 'orange'}">${headerData.is_secure !== false ? 'Secure' : 'Needs Review'}</td>
+                                <td>Security Header</td>
+                                <td>${truncateValue(headerData.value || 'Set', 100)}</td>
+                            </tr>`;
+                        } else {
+                            html += `<tr>
+                                <td>${displayName}</td>
+                                <td style="color: red">✗ Missing</td>
+                                <td style="color: red">Not Implemented</td>
+                                <td>Security Header</td>
+                                <td>${headerData.recommendation || getHeaderRecommendation(headerName)}</td>
+                            </tr>`;
+                        }
+                    }
+                }
+                
+                // Show missing headers summary
+                if (securityData.missing_headers && securityData.missing_headers.length > 0) {
+                    html += '<tr><td>Missing Headers Summary</td><td colspan="4" style="color: #f57c00;">' + 
+                        securityData.missing_headers.map(h => h.split('-').map(w => 
+                            w.charAt(0).toUpperCase() + w.slice(1)
+                        ).join('-')).join(', ') + '</td></tr>';
+                }
+            }
+            
+            // Vulnerabilities detailed view
+            if (securityData.vulnerabilities && securityData.vulnerabilities.length > 0) {
+                html += '<tr><td colspan="5" style="background: #ffcdd2; font-weight: bold;">Security Vulnerabilities</td></tr>';
+                
+                securityData.vulnerabilities.forEach((vuln, index) => {
+                    // Parse vulnerability if it contains severity info
+                    let severity = 'Medium';
+                    let description = vuln;
+                    
+                    if (vuln.includes(':')) {
+                        const parts = vuln.split(':');
+                        if (parts[0].toLowerCase().includes('critical') || parts[0].toLowerCase().includes('high')) {
+                            severity = 'High';
+                        } else if (parts[0].toLowerCase().includes('low')) {
+                            severity = 'Low';
+                        }
+                        description = parts.slice(1).join(':').trim();
+                    }
+                    
+                    const severityColor = severity === 'High' ? '#d32f2f' : 
+                                        severity === 'Medium' ? '#f57c00' : '#388e3c';
+                    
+                    html += `<tr>
+                        <td>Vulnerability ${index + 1}</td>
+                        <td colspan="2" style="color: ${severityColor}">${description}</td>
+                        <td style="color: ${severityColor}; font-weight: bold;">${severity}</td>
+                        <td>Security Vulnerability</td>
+                    </tr>`;
+                });
+            }
+            
+            // Cookie security issues (if any)
+            if (securityData.cookie_issues && securityData.cookie_issues.length > 0) {
+                html += '<tr><td colspan="5" style="background: #ffe0b2; font-weight: bold;">Cookie Security Issues</td></tr>';
+                
+                securityData.cookie_issues.forEach((issue, index) => {
+                    html += `<tr>
+                        <td>Cookie Issue ${index + 1}</td>
+                        <td colspan="3">${issue}</td>
+                        <td>Cookie Security</td>
+                    </tr>`;
+                });
+            }
+            
+            // Recommendations with priority and category
+            if (securityData.recommendations && securityData.recommendations.length > 0) {
+                html += '<tr><td colspan="5" style="background: #f3e5f5; font-weight: bold;">Security Recommendations</td></tr>';
+                
+                // Group recommendations by estimated priority
+                const highPriority = [];
+                const mediumPriority = [];
+                const lowPriority = [];
+                
+                securityData.recommendations.forEach(rec => {
+                    if (rec.toLowerCase().includes('critical') || 
+                        rec.toLowerCase().includes('immediately') ||
+                        rec.toLowerCase().includes('https') ||
+                        rec.toLowerCase().includes('vulnerability')) {
+                        highPriority.push(rec);
+                    } else if (rec.toLowerCase().includes('consider') ||
+                             rec.toLowerCase().includes('review')) {
+                        lowPriority.push(rec);
+                    } else {
+                        mediumPriority.push(rec);
+                    }
+                });
+                
+                // Display by priority
+                if (highPriority.length > 0) {
+                    html += '<tr><td style="color: #d32f2f; font-weight: bold;">High Priority</td><td colspan="4">' + 
+                        '<ul style="margin: 0; padding-left: 20px;">' +
+                        highPriority.map(r => `<li>${r}</li>`).join('') +
+                        '</ul></td></tr>';
+                }
+                
+                if (mediumPriority.length > 0) {
+                    html += '<tr><td style="color: #f57c00; font-weight: bold;">Medium Priority</td><td colspan="4">' + 
+                        '<ul style="margin: 0; padding-left: 20px;">' +
+                        mediumPriority.map(r => `<li>${r}</li>`).join('') +
+                        '</ul></td></tr>';
+                }
+                
+                if (lowPriority.length > 0) {
+                    html += '<tr><td style="color: #388e3c; font-weight: bold;">Low Priority</td><td colspan="4">' + 
+                        '<ul style="margin: 0; padding-left: 20px;">' +
+                        lowPriority.map(r => `<li>${r}</li>`).join('') +
+                        '</ul></td></tr>';
+                }
+            }
+            
+            // Analysis timestamp
+            if (securityData.analysis_timestamp) {
+                const timestamp = new Date(securityData.analysis_timestamp);
+                html += `<tr>
+                    <td>Analysis Timestamp</td>
+                    <td colspan="4">${timestamp.toLocaleString()}</td>
+                </tr>`;
+            }
+            
+            // Add raw JSON display for debugging
+            html += '<tr><td colspan="5" style="background: #f5f5f5; font-weight: bold;">Raw Security Data (Debug)</td></tr>';
+            html += `<tr><td colspan="5"><pre style="font-size: 11px; overflow: auto; max-height: 400px;">${JSON.stringify(securityData, null, 2)}</pre></td></tr>`;
+            
+            resultsBody.innerHTML = html;
+        }
+        
+        function getSecurityGrade(score) {
+            if (score >= 90) return 'A';
+            if (score >= 80) return 'B';
+            if (score >= 70) return 'C';
+            if (score >= 60) return 'D';
+            return 'F';
+        }
+        
+        function truncateValue(value, maxLength) {
+            if (!value || value.length <= maxLength) return value;
+            return value.substring(0, maxLength) + '...';
+        }
+        
+        function getHeaderRecommendation(headerName) {
+            const recommendations = {
+                'strict-transport-security': 'Enable HSTS to force HTTPS connections',
+                'x-content-type-options': 'Set to "nosniff" to prevent MIME type sniffing',
+                'x-frame-options': 'Set to "DENY" or "SAMEORIGIN" to prevent clickjacking',
+                'content-security-policy': 'Implement CSP to prevent XSS attacks',
+                'x-xss-protection': 'Enable XSS filter in browsers',
+                'referrer-policy': 'Control referrer information sent with requests'
+            };
+            return recommendations[headerName.toLowerCase()] || 'Implement this security header';
+        }
+        
+        function displayGBPResults(gbpData, gbpSummary) {
+            if (!gbpData && !gbpSummary) {
+                return;
+            }
+            
+            let html = resultsBody.innerHTML || '';
+            
+            // Add GBP section
+            html += '<tr><td colspan="5" style="background: #e1f5fe; font-weight: bold;">Google Business Profile Analysis</td></tr>';
+            
+            if (gbpSummary && gbpSummary.found) {
+                // Business found
+                const confidenceColor = gbpSummary.confidence >= 0.8 ? '#4caf50' : 
+                                      gbpSummary.confidence >= 0.6 ? '#ff9800' : '#f44336';
+                
+                html += `<tr>
+                    <td>Business Found</td>
+                    <td style="color: green">✓ Yes</td>
+                    <td style="color: ${confidenceColor}">Confidence: ${(gbpSummary.confidence * 100).toFixed(0)}%</td>
+                    <td>Google Business Profile</td>
+                    <td>Business profile identified on Google</td>
+                </tr>`;
+                
+                if (gbpSummary.name) {
+                    html += createMetricRow('Business Name', gbpSummary.name, 'Google Business Profile');
+                }
+                
+                if (gbpSummary.rating > 0) {
+                    const ratingColor = gbpSummary.rating >= 4.5 ? '#4caf50' : 
+                                      gbpSummary.rating >= 4.0 ? '#8bc34a' :
+                                      gbpSummary.rating >= 3.5 ? '#ff9800' : '#f44336';
+                    html += `<tr>
+                        <td>Average Rating</td>
+                        <td style="color: ${ratingColor}; font-weight: bold;">⭐ ${gbpSummary.rating.toFixed(1)}/5.0</td>
+                        <td>${gbpSummary.review_count} reviews</td>
+                        <td>Google Reviews</td>
+                        <td>Average customer rating</td>
+                    </tr>`;
+                }
+                
+                if (gbpSummary.is_open !== null && gbpSummary.is_open !== undefined) {
+                    html += createMetricRow('Currently Open', gbpSummary.is_open ? 'Yes ✓' : 'No ✗', 'Business Hours');
+                }
+                
+                if (gbpSummary.verified) {
+                    html += createMetricRow('Google Verified', '✓ Verified', 'Google Business Profile');
+                }
+            } else {
+                // Business not found or low confidence
+                html += `<tr>
+                    <td>Business Found</td>
+                    <td style="color: orange">⚠ Not Found</td>
+                    <td>No matching profile</td>
+                    <td>Google Business Profile</td>
+                    <td>No Google Business Profile found for this business</td>
+                </tr>`;
+            }
+            
+            // Show detailed GBP data if available
+            if (gbpData && gbpData.gbp_data) {
+                const data = gbpData.gbp_data;
+                
+                // Business hours
+                if (data.hours && data.hours.regular_hours && Object.keys(data.hours.regular_hours).length > 0) {
+                    html += '<tr><td colspan="5" style="background: #e8f5e9; font-weight: bold;">Business Hours</td></tr>';
+                    const daysOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                    for (const day of daysOrder) {
+                        if (data.hours.regular_hours[day]) {
+                            const dayCapitalized = day.charAt(0).toUpperCase() + day.slice(1);
+                            html += createMetricRow(dayCapitalized, data.hours.regular_hours[day], 'Business Hours');
+                        }
+                    }
+                }
+                
+                // Photos
+                if (data.photos && data.photos.total_photos > 0) {
+                    html += '<tr><td colspan="5" style="background: #f3e5f5; font-weight: bold;">Photos & Media</td></tr>';
+                    html += createMetricRow('Total Photos', data.photos.total_photos.toString(), 'Google Photos');
+                    if (data.photos.owner_photos > 0) {
+                        html += createMetricRow('Owner Photos', data.photos.owner_photos.toString(), 'Business Owner');
+                    }
+                    if (data.photos.customer_photos > 0) {
+                        html += createMetricRow('Customer Photos', data.photos.customer_photos.toString(), 'Customers');
+                    }
+                }
+                
+                // Contact info
+                if (data.phone_number || data.website) {
+                    html += '<tr><td colspan="5" style="background: #fff3e0; font-weight: bold;">Contact Information</td></tr>';
+                    if (data.phone_number) {
+                        html += createMetricRow('Phone', data.phone_number, 'Contact');
+                    }
+                    if (data.website) {
+                        html += createMetricRow('Website', `<a href="${data.website}" target="_blank">${data.website}</a>`, 'Contact');
+                    }
+                }
+                
+                // Address
+                if (data.formatted_address) {
+                    html += createMetricRow('Address', data.formatted_address, 'Location');
+                }
+            }
+            
+            // Analysis timestamp
+            if (gbpData && gbpData.analysis_timestamp) {
+                const timestamp = new Date(gbpData.analysis_timestamp);
+                html += `<tr>
+                    <td>GBP Analysis Timestamp</td>
+                    <td colspan="4">${timestamp.toLocaleString()}</td>
+                </tr>`;
+            }
+            
+            // Add raw JSON display for debugging
+            if (gbpData) {
+                html += '<tr><td colspan="5" style="background: #f5f5f5; font-weight: bold;">Raw GBP Data (Debug)</td></tr>';
+                html += `<tr><td colspan="5"><pre style="font-size: 11px; overflow: auto; max-height: 400px;">${JSON.stringify(gbpData, null, 2)}</pre></td></tr>`;
+            }
+            
+            resultsBody.innerHTML = html;
+        }
+        
+        function displayScreenshotResults(screenshotData) {
+            if (!screenshotData) {
+                return;
+            }
+            
+            let html = resultsBody.innerHTML || '';
+            
+            // Add screenshot section
+            html += '<tr><td colspan="5" style="background: #e8f5e9; font-weight: bold;">Screenshot Capture</td></tr>';
+            
+            if (screenshotData.success) {
+                // Desktop screenshot
+                if (screenshotData.desktop && screenshotData.desktop.captured) {
+                    html += createMetricRow('Desktop Screenshot', 
+                        `✓ Captured (${screenshotData.desktop.width}x${screenshotData.desktop.height})`,
+                        'Screenshot Capture');
+                    if (screenshotData.desktop.capture_duration_ms) {
+                        html += createMetricRow('Desktop Capture Time', 
+                            `${screenshotData.desktop.capture_duration_ms}ms`,
+                            'Performance');
+                    }
+                    if (screenshotData.desktop.url) {
+                        html += `<tr><td>Desktop Preview</td><td colspan="4">
+                            <a href="${screenshotData.desktop.url}" target="_blank">
+                                <img src="${screenshotData.desktop.url}" style="max-width: 400px; max-height: 300px; border: 1px solid #ddd;" />
+                            </a>
+                        </td></tr>`;
+                    }
+                }
+                
+                // Mobile screenshot
+                if (screenshotData.mobile && screenshotData.mobile.captured) {
+                    html += createMetricRow('Mobile Screenshot', 
+                        `✓ Captured (${screenshotData.mobile.width}x${screenshotData.mobile.height})`,
+                        'Screenshot Capture');
+                    if (screenshotData.mobile.capture_duration_ms) {
+                        html += createMetricRow('Mobile Capture Time', 
+                            `${screenshotData.mobile.capture_duration_ms}ms`,
+                            'Performance');
+                    }
+                    if (screenshotData.mobile.url) {
+                        html += `<tr><td>Mobile Preview</td><td colspan="4">
+                            <a href="${screenshotData.mobile.url}" target="_blank">
+                                <img src="${screenshotData.mobile.url}" style="max-width: 200px; max-height: 400px; border: 1px solid #ddd;" />
+                            </a>
+                        </td></tr>`;
+                    }
+                }
+            } else {
+                html += createMetricRow('Screenshot Capture', '✗ Failed', 'Screenshot Capture');
+                if (screenshotData.error_message) {
+                    html += `<tr><td>Error</td><td colspan="4" style="color: red;">${screenshotData.error_message}</td></tr>`;
+                }
+            }
+            
+            resultsBody.innerHTML = html;
+        }
+        
+        function displayVisualAnalysisResults(visualData) {
+            if (!visualData) {
+                return;
+            }
+            
+            let html = resultsBody.innerHTML || '';
+            
+            // Add visual analysis section
+            html += '<tr><td colspan="5" style="background: #e1bee7; font-weight: bold;">Visual UX Analysis (AI-Powered)</td></tr>';
+            
+            if (visualData.success) {
+                // Overall UX Score with color coding
+                const uxScore = visualData.overall_ux_score || 0;
+                const scorePercent = (uxScore / 2) * 100; // Convert 0-2 scale to percentage
+                const scoreColor = scorePercent >= 80 ? '#4caf50' : 
+                                  scorePercent >= 60 ? '#ff9800' : '#f44336';
+                
+                html += `<tr>
+                    <td>Overall UX Score</td>
+                    <td style="font-weight: bold; color: ${scoreColor}">${uxScore.toFixed(2)}/2.0 (${scorePercent.toFixed(0)}%)</td>
+                    <td>${getUXGrade(scorePercent)}</td>
+                    <td>AI Analysis</td>
+                    <td>Comprehensive UX assessment score</td>
+                </tr>`;
+                
+                // Individual rubric scores
+                if (visualData.rubrics && visualData.rubrics.length > 0) {
+                    html += '<tr><td colspan="5" style="background: #f3e5f5; font-weight: bold;">UX Rubric Scores</td></tr>';
+                    
+                    const rubricNames = {
+                        'above_fold_clarity': 'Above-Fold Clarity',
+                        'cta_prominence': 'CTA Prominence',
+                        'trust_signals_presence': 'Trust Signals',
+                        'visual_hierarchy': 'Visual Hierarchy',
+                        'text_readability': 'Text Readability',
+                        'brand_cohesion': 'Brand Cohesion',
+                        'image_quality': 'Image Quality',
+                        'mobile_responsiveness': 'Mobile Responsiveness',
+                        'white_space_balance': 'White Space Balance'
+                    };
+                    
+                    visualData.rubrics.forEach(rubric => {
+                        const displayName = rubricNames[rubric.name] || rubric.name;
+                        const scoreColor = rubric.score === 2 ? '#4caf50' : 
+                                         rubric.score === 1 ? '#ff9800' : '#f44336';
+                        const scoreText = rubric.score === 2 ? 'Good' : 
+                                        rubric.score === 1 ? 'Fair' : 'Poor';
+                        
+                        html += `<tr>
+                            <td>${displayName}</td>
+                            <td style="color: ${scoreColor}; font-weight: bold;">${rubric.score}/2 (${scoreText})</td>
+                            <td colspan="3">${rubric.explanation}</td>
+                        </tr>`;
+                        
+                        // Show recommendations if score is less than perfect
+                        if (rubric.score < 2 && rubric.recommendations && rubric.recommendations.length > 0) {
+                            html += `<tr>
+                                <td style="padding-left: 20px;">↳ Recommendations</td>
+                                <td colspan="4">
+                                    <ul style="margin: 0; padding-left: 20px;">
+                                        ${rubric.recommendations.map(r => `<li>${r}</li>`).join('')}
+                                    </ul>
+                                </td>
+                            </tr>`;
+                        }
+                    });
+                }
+                
+                // Critical issues
+                if (visualData.critical_issues && visualData.critical_issues.length > 0) {
+                    html += '<tr><td colspan="5" style="background: #ffcdd2; font-weight: bold;">Critical UX Issues</td></tr>';
+                    visualData.critical_issues.forEach((issue, idx) => {
+                        html += `<tr>
+                            <td>Issue ${idx + 1}</td>
+                            <td colspan="3" style="color: #d32f2f;">${issue}</td>
+                            <td>High Priority</td>
+                        </tr>`;
+                    });
+                }
+                
+                // Positive elements
+                if (visualData.positive_elements && visualData.positive_elements.length > 0) {
+                    html += '<tr><td colspan="5" style="background: #c8e6c9; font-weight: bold;">Positive UX Elements</td></tr>';
+                    visualData.positive_elements.forEach((element, idx) => {
+                        html += `<tr>
+                            <td>Strength ${idx + 1}</td>
+                            <td colspan="3" style="color: #388e3c;">✓ ${element}</td>
+                            <td>Well Done</td>
+                        </tr>`;
+                    });
+                }
+                
+                // Desktop analysis insights
+                if (visualData.desktop_analysis) {
+                    html += '<tr><td colspan="5" style="background: #e3f2fd; font-weight: bold;">Desktop UX Analysis</td></tr>';
+                    
+                    if (visualData.desktop_analysis.strengths && visualData.desktop_analysis.strengths.length > 0) {
+                        html += '<tr><td>Desktop Strengths</td><td colspan="4">' + 
+                            '<ul style="margin: 0; padding-left: 20px;">' +
+                            visualData.desktop_analysis.strengths.map(s => `<li>${s}</li>`).join('') +
+                            '</ul></td></tr>';
+                    }
+                    
+                    if (visualData.desktop_analysis.weaknesses && visualData.desktop_analysis.weaknesses.length > 0) {
+                        html += '<tr><td>Desktop Issues</td><td colspan="4">' + 
+                            '<ul style="margin: 0; padding-left: 20px;">' +
+                            visualData.desktop_analysis.weaknesses.map(w => `<li>${w}</li>`).join('') +
+                            '</ul></td></tr>';
+                    }
+                    
+                    if (visualData.desktop_analysis.layout_effectiveness) {
+                        html += createMetricRow('Desktop Layout', visualData.desktop_analysis.layout_effectiveness, 'Desktop Analysis');
+                    }
+                }
+                
+                // Mobile analysis insights
+                if (visualData.mobile_analysis) {
+                    html += '<tr><td colspan="5" style="background: #fff3e0; font-weight: bold;">Mobile UX Analysis</td></tr>';
+                    
+                    if (visualData.mobile_analysis.strengths && visualData.mobile_analysis.strengths.length > 0) {
+                        html += '<tr><td>Mobile Strengths</td><td colspan="4">' + 
+                            '<ul style="margin: 0; padding-left: 20px;">' +
+                            visualData.mobile_analysis.strengths.map(s => `<li>${s}</li>`).join('') +
+                            '</ul></td></tr>';
+                    }
+                    
+                    if (visualData.mobile_analysis.weaknesses && visualData.mobile_analysis.weaknesses.length > 0) {
+                        html += '<tr><td>Mobile Issues</td><td colspan="4">' + 
+                            '<ul style="margin: 0; padding-left: 20px;">' +
+                            visualData.mobile_analysis.weaknesses.map(w => `<li>${w}</li>`).join('') +
+                            '</ul></td></tr>';
+                    }
+                    
+                    if (visualData.mobile_analysis.responsive_quality) {
+                        html += createMetricRow('Responsive Quality', visualData.mobile_analysis.responsive_quality, 'Mobile Analysis');
+                    }
+                }
+                
+                // Cost and performance info
+                if (visualData.api_cost_dollars !== undefined || visualData.processing_time_ms !== undefined) {
+                    html += '<tr><td colspan="5" style="background: #f5f5f5; font-weight: bold;">Analysis Metadata</td></tr>';
+                    
+                    if (visualData.api_cost_dollars !== undefined) {
+                        html += createMetricRow('AI Analysis Cost', `$${visualData.api_cost_dollars.toFixed(4)}`, 'OpenAI Vision API');
+                    }
+                    
+                    if (visualData.processing_time_ms !== undefined) {
+                        html += createMetricRow('Processing Time', `${visualData.processing_time_ms}ms`, 'Performance');
+                    }
+                }
+                
+            } else {
+                // Analysis failed
+                html += `<tr>
+                    <td>Visual Analysis</td>
+                    <td style="color: red">✗ Failed</td>
+                    <td colspan="3">${visualData.error_message || 'Analysis could not be completed'}</td>
+                </tr>`;
+            }
+            
+            resultsBody.innerHTML = html;
+        }
+        
+        function displaySEMrushResults(semrushData) {
+            if (!semrushData) {
+                return;
+            }
+            
+            let html = resultsBody.innerHTML || '';
+            
+            // Add SEMrush section
+            html += '<tr><td colspan="5" style="background: #fce4ec; font-weight: bold;">SEMrush Domain Analysis</td></tr>';
+            
+            if (semrushData.success) {
+                // Authority Score
+                const authorityScore = semrushData.authority_score || 0;
+                const authorityColor = authorityScore >= 70 ? '#4caf50' : 
+                                     authorityScore >= 50 ? '#ff9800' : '#f44336';
+                html += `<tr>
+                    <td>Domain Authority</td>
+                    <td style="font-weight: bold; color: ${authorityColor}">${authorityScore}/100</td>
+                    <td>${getAuthorityGrade(authorityScore)}</td>
+                    <td>SEMrush</td>
+                    <td>Domain trustworthiness and quality score</td>
+                </tr>`;
+                
+                // Organic Traffic
+                const traffic = semrushData.organic_traffic_estimate || 0;
+                html += createMetricRow('Organic Traffic Estimate', traffic.toLocaleString() + ' visitors/month', 'SEMrush');
+                
+                // Keywords
+                const keywords = semrushData.ranking_keywords_count || 0;
+                html += createMetricRow('Ranking Keywords', keywords.toLocaleString() + ' keywords', 'SEMrush');
+                
+                // Site Health Score
+                const healthScore = semrushData.site_health_score || 0;
+                const healthColor = healthScore >= 80 ? '#4caf50' : 
+                                  healthScore >= 60 ? '#ff9800' : '#f44336';
+                html += `<tr>
+                    <td>Site Health Score</td>
+                    <td style="font-weight: bold; color: ${healthColor}">${healthScore.toFixed(1)}%</td>
+                    <td>${getHealthGrade(healthScore)}</td>
+                    <td>SEMrush</td>
+                    <td>Technical SEO health assessment</td>
+                </tr>`;
+                
+                // Backlink Toxicity
+                const toxicity = semrushData.backlink_toxicity_score || 0;
+                const toxicityColor = toxicity <= 20 ? '#4caf50' : 
+                                    toxicity <= 40 ? '#ff9800' : '#f44336';
+                html += `<tr>
+                    <td>Backlink Toxicity</td>
+                    <td style="font-weight: bold; color: ${toxicityColor}">${toxicity.toFixed(1)}%</td>
+                    <td>${toxicity <= 20 ? 'Low Risk' : toxicity <= 40 ? 'Medium Risk' : 'High Risk'}</td>
+                    <td>SEMrush</td>
+                    <td>Percentage of potentially harmful backlinks</td>
+                </tr>`;
+                
+                // Technical Issues
+                if (semrushData.technical_issues && semrushData.technical_issues.length > 0) {
+                    html += '<tr><td colspan="5" style="background: #ffebee; font-weight: bold;">Technical SEO Issues</td></tr>';
+                    
+                    semrushData.technical_issues.forEach((issue, idx) => {
+                        const severityColor = issue.severity === 'critical' ? '#d32f2f' :
+                                            issue.severity === 'high' ? '#f44336' :
+                                            issue.severity === 'medium' ? '#ff9800' : '#ffc107';
+                        html += `<tr>
+                            <td style="padding-left: 20px;">Issue ${idx + 1}</td>
+                            <td style="color: ${severityColor}; font-weight: bold;">${issue.severity.toUpperCase()}</td>
+                            <td>${issue.issue_type}</td>
+                            <td>${issue.category}</td>
+                            <td>${issue.description}</td>
+                        </tr>`;
+                    });
+                }
+                
+                // API cost info
+                if (semrushData.api_cost_units !== undefined || semrushData.extraction_duration_ms !== undefined) {
+                    html += '<tr><td colspan="5" style="background: #f5f5f5; font-weight: bold;">SEMrush Metadata</td></tr>';
+                    
+                    if (semrushData.api_cost_units !== undefined) {
+                        html += createMetricRow('API Units Used', semrushData.api_cost_units.toString(), 'SEMrush API');
+                    }
+                    
+                    if (semrushData.extraction_duration_ms !== undefined) {
+                        html += createMetricRow('Analysis Time', `${semrushData.extraction_duration_ms}ms`, 'Performance');
+                    }
+                }
+                
+            } else {
+                // Analysis failed
+                html += `<tr>
+                    <td>SEMrush Analysis</td>
+                    <td style="color: red">✗ Failed</td>
+                    <td colspan="3">${semrushData.error_message || 'Analysis could not be completed'}</td>
+                </tr>`;
+            }
+            
+            resultsBody.innerHTML = html;
+        }
+        
+        function getAuthorityGrade(score) {
+            if (score >= 70) return 'Excellent';
+            if (score >= 50) return 'Good';
+            if (score >= 30) return 'Fair';
+            return 'Poor';
+        }
+        
+        function getHealthGrade(score) {
+            if (score >= 80) return 'Healthy';
+            if (score >= 60) return 'Good';
+            if (score >= 40) return 'Needs Work';
+            return 'Poor';
+        }
+        
+        function getUXGrade(scorePercent) {
+            if (scorePercent >= 90) return 'Excellent';
+            if (scorePercent >= 80) return 'Good';
+            if (scorePercent >= 70) return 'Fair';
+            if (scorePercent >= 60) return 'Needs Work';
+            return 'Poor';
+        }
+        
+        function displayDecomposedScores(decomposedData) {
+            if (!decomposedData) {
+                return;
+            }
+            
+            let html = resultsBody.innerHTML || '';
+            
+            // Add decomposed scores section
+            html += '<tr><td colspan="5" style="background: #d1c4e9; font-weight: bold;">DECOMPOSED SCORES FROM DATABASE (PRP-014)</td></tr>';
+            
+            // Count non-null metrics
+            const nonNullMetrics = Object.entries(decomposedData).filter(([key, value]) => value !== null && value !== undefined);
+            
+            html += `<tr>
+                <td>Total Metrics Stored</td>
+                <td style="font-weight: bold; color: #4caf50;">${nonNullMetrics.length} / 53</td>
+                <td colspan="3">Individual metrics extracted and stored in database</td>
+            </tr>`;
+            
+            // Group metrics by category
+            const categories = {
+                'PageSpeed Metrics': ['First Contentful Paint (FCP)', 'Largest Contentful Paint (LCP)', 'Cumulative Layout Shift (CLS)', 
+                                    'Total Blocking Time (TBT)', 'Time to Interactive (TTI)', 'Speed Index', 'Performance Score (runtime)'],
+                'Security/Technical Metrics': ['HTTPS enforced?', 'TLS Version', 'HSTS Header present', 'Content-Security-Policy header', 
+                                             'X-Frame-Options header', 'robots.txt found', 'sitemap.xml found', 
+                                             'Broken internal links (#)', 'JS console errors (#)'],
+                'Google Business Profile': ['hours', 'review_count', 'rating', 'photos_count', 'total_reviews', 
+                                          'avg_rating', 'recent_90d', 'rating_trend', 'is_closed'],
+                'Screenshot/Visual': ['Screenshots Captured', 'Image Quality Assessment'],
+                'SEMrush Metrics': ['Site Health Score', 'Backlink Toxicity Score', 'Organic Traffic Est.', 
+                                  'Ranking Keywords (#)', 'Domain Authority Score', 'Top Issue Categories'],
+                'Lighthouse Visual': ['Performance Score (headless)', 'Accessibility Score', 'Best-Practices Score', 'SEO Score',
+                                    'Visual rubric #1 – Above-the-fold clarity', 'Visual rubric #2 – Primary CTA prominence',
+                                    'Visual rubric #3 – Trust signals present', 'Visual rubric #4 – Visual hierarchy / contrast',
+                                    'Visual rubric #5 – Text readability', 'Visual rubric #6 – Brand colour cohesion',
+                                    'Visual rubric #7 – Image quality', 'Visual rubric #8 – Mobile responsiveness hint',
+                                    'Visual rubric #9 – Clutter / white-space balance'],
+                'Content Metrics': ['Unique Value Prop clarity', 'Contact Info presence', 'Next-Step clarity (CTA)',
+                                  'Social-Proof presence', 'Content Quality Score', 'Brand Voice Consistency',
+                                  'Spam Score Assessment']
+            };
+            
+            // Display metrics by category
+            for (const [category, metrics] of Object.entries(categories)) {
+                const categoryMetrics = metrics.filter(metric => decomposedData[metric] !== null && decomposedData[metric] !== undefined);
+                
+                if (categoryMetrics.length > 0) {
+                    html += `<tr><td colspan="5" style="background: #e8eaf6; font-weight: bold;">${category} (${categoryMetrics.length}/${metrics.length})</td></tr>`;
+                    
+                    categoryMetrics.forEach(metric => {
+                        const value = decomposedData[metric];
+                        let displayValue = value;
+                        
+                        // Format different value types
+                        if (typeof value === 'boolean') {
+                            displayValue = value ? '✓ Yes' : '✗ No';
+                        } else if (typeof value === 'number' && metric.includes('ms')) {
+                            displayValue = `${value}ms`;
+                        } else if (typeof value === 'number' && (metric.includes('Score') || metric.includes('rubric'))) {
+                            displayValue = `${value}`;
+                            if (metric.includes('Performance Score')) displayValue += '/100';
+                            else if (metric.includes('rubric')) displayValue += '/9';
+                        } else if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        
+                        html += `<tr>
+                            <td style="padding-left: 20px;">${metric}</td>
+                            <td>${displayValue}</td>
+                            <td>${getMetricStatus(metric, value)}</td>
+                            <td>Database</td>
+                            <td>Stored in assessment_results table</td>
+                        </tr>`;
+                    });
+                } else {
+                    html += `<tr><td colspan="5" style="background: #ffebee;">${category} - No data stored</td></tr>`;
+                }
+            }
+            
+            resultsBody.innerHTML = html;
+        }
+        
+    </script>
+
+</body></html>

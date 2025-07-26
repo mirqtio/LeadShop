@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Assessment UI</title>
+</head>
+<body>
+    <h1>Debug Assessment Response</h1>
+    <button onclick="testAssessment()">Run Test Assessment</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function testAssessment() {
+            const result = document.getElementById('result');
+            result.textContent = 'Running assessment...';
+            
+            try {
+                const response = await fetch('http://localhost:8001/api/v1/simple-assessment/assess', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: 'https://example.com',
+                        business_name: 'Test'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Check what we got
+                const summary = {
+                    success: data.success,
+                    hasDbRow: !!data.db_row,
+                    hasDecomposedMetrics: !!(data.db_row && data.db_row.decomposed_metrics),
+                    decomposedMetricsCount: data.db_row && data.db_row.decomposed_metrics ? Object.keys(data.db_row.decomposed_metrics).length : 0,
+                    dbRowKeys: data.db_row ? Object.keys(data.db_row) : [],
+                    firstFewMetrics: data.db_row && data.db_row.decomposed_metrics ? Object.entries(data.db_row.decomposed_metrics).slice(0, 5) : []
+                };
+                
+                result.textContent = JSON.stringify(summary, null, 2);
+                
+                // Also log to console
+                console.log('Full response:', data);
+                console.log('Decomposed metrics:', data.db_row?.decomposed_metrics);
+                
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

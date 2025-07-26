@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Assessment - Database Row Display</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            font-size: 24px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        input {
+            width: 400px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 3px;
+        }
+        .db-row {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        .db-row h2 {
+            margin-top: 0;
+            color: #495057;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: #e9ecef;
+            font-weight: bold;
+        }
+        td {
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-word;
+            max-width: 600px;
+        }
+        .metric-value {
+            text-align: right;
+        }
+        .metric-null {
+            color: #999;
+            font-style: italic;
+        }
+        .metric-good {
+            color: green;
+        }
+        .metric-warning {
+            color: orange;
+        }
+        .metric-bad {
+            color: red;
+        }
+        .category-header {
+            background: #e9ecef;
+            font-weight: bold;
+            padding: 10px;
+        }
+        .screenshots {
+            margin-top: 30px;
+        }
+        .screenshot-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .screenshot-container img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .screenshot-label {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simple Assessment - Direct Database Display</h1>
+        
+        <form id="assessmentForm">
+            <div class="form-group">
+                <label>URL: </label>
+                <input type="url" id="url" name="url" required value="https://www.apple.com">
+            </div>
+            
+            <div class="form-group">
+                <label>Business Name: </label>
+                <input type="text" id="businessName" name="businessName" value="Apple">
+            </div>
+            
+            <button type="submit" id="submitBtn">Run Assessment</button>
+        </form>
+        
+        <div id="status" class="status" style="display: none;"></div>
+        
+        <div id="dbRow" class="db-row" style="display: none;">
+            <h2>PostgreSQL Assessment Results - Decomposed Metrics (53 Individual)</h2>
+            <table id="dbTable">
+                <thead>
+                    <tr>
+                        <th width="70%">Metric</th>
+                        <th width="30%">Value</th>
+                    </tr>
+                </thead>
+                <tbody id="dbTableBody">
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="screenshots" class="screenshots" style="display: none;">
+            <h2>Screenshots</h2>
+            <div id="screenshotContainer"></div>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('assessmentForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusDiv = document.getElementById('status');
+        const dbRowDiv = document.getElementById('dbRow');
+        const dbTableBody = document.getElementById('dbTableBody');
+        const screenshotsDiv = document.getElementById('screenshots');
+        const screenshotContainer = document.getElementById('screenshotContainer');
+        
+        // Metric categories for grouping
+        const metricCategories = {
+            'PageSpeed': [
+                'First Contentful Paint (FCP)',
+                'Largest Contentful Paint (LCP)', 
+                'Cumulative Layout Shift (CLS)',
+                'Total Blocking Time (TBT)',
+                'Time to Interactive (TTI)',
+                'Speed Index',
+                'Performance Score (runtime)'
+            ],
+            'Security': [
+                'HTTPS enforced?',
+                'TLS Version',
+                'HSTS Header present',
+                'Content-Security-Policy header',
+                'X-Frame-Options header',
+                'robots.txt found',
+                'sitemap.xml found',
+                'Broken internal links (#)',
+                'JS console errors (#)'
+            ],
+            'Google Business Profile': [
+                'hours',
+                'review_count',
+                'rating',
+                'photos_count',
+                'total_reviews',
+                'avg_rating',
+                'recent_90d',
+                'rating_trend',
+                'is_closed'
+            ],
+            'Screenshots': [
+                'Screenshots Captured',
+                'Image Quality Assessment'
+            ],
+            'SEMrush': [
+                'Site Health Score',
+                'Backlink Toxicity Score',
+                'Organic Traffic Est.',
+                'Ranking Keywords (#)',
+                'Domain Authority Score',
+                'Top Issue Categories'
+            ],
+            'Visual Assessment': [
+                'Performance Score (headless)',
+                'Accessibility Score',
+                'Best-Practices Score',
+                'SEO Score',
+                'Visual rubric #1',
+                'Visual rubric #2',
+                'Visual rubric #3',
+                'Visual rubric #4',
+                'Visual rubric #5',
+                'Visual rubric #6',
+                'Visual rubric #7',
+                'Visual rubric #8',
+                'Visual rubric #9'
+            ],
+            'Content Quality': [
+                'Unique Value Prop clarity',
+                'Contact Info presence',
+                'Next-Step clarity (CTA)',
+                'Social-Proof presence',
+                'Content Quality Score',
+                'Brand Voice Consistency',
+                'Spam Score Assessment'
+            ]
+        };
+        
+        // Create a map for quick category lookup
+        const metricToCategory = {};
+        Object.entries(metricCategories).forEach(([category, metrics]) => {
+            metrics.forEach(metric => {
+                metricToCategory[metric] = category;
+            });
+        });
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                url: document.getElementById('url').value,
+                business_name: document.getElementById('businessName').value
+            };
+            
+            // Reset UI
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Running...';
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Starting assessment...';
+            dbRowDiv.style.display = 'none';
+            screenshotsDiv.style.display = 'none';
+            dbTableBody.innerHTML = '';
+            screenshotContainer.innerHTML = '';
+            
+            try {
+                // Start assessment
+                const response = await fetch('/api/v1/simple-assessment/assess', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                statusDiv.textContent = 'Assessment completed!';
+                
+                // Display decomposed metrics
+                if (data.db_row && data.db_row.decomposed_metrics) {
+                    const metrics = data.db_row.decomposed_metrics;
+                    console.log(`Found ${Object.keys(metrics).length} decomposed metrics`);
+                    
+                    if (Object.keys(metrics).length > 0) {
+                        dbRowDiv.style.display = 'block';
+                        
+                        // Group metrics by category
+                        const groupedMetrics = {};
+                        Object.entries(metrics).forEach(([metric, value]) => {
+                            const category = metricToCategory[metric] || 'Other';
+                            if (!groupedMetrics[category]) {
+                                groupedMetrics[category] = [];
+                            }
+                            groupedMetrics[category].push({ metric, value });
+                        });
+                        
+                        // Display metrics by category
+                        Object.entries(groupedMetrics).forEach(([category, categoryMetrics]) => {
+                            // Add category header
+                            const categoryRow = document.createElement('tr');
+                            const categoryCell = document.createElement('td');
+                            categoryCell.colSpan = 2;
+                            categoryCell.className = 'category-header';
+                            categoryCell.textContent = category;
+                            categoryRow.appendChild(categoryCell);
+                            dbTableBody.appendChild(categoryRow);
+                            
+                            // Add metrics in this category
+                            categoryMetrics.forEach(({ metric, value }) => {
+                                const row = document.createElement('tr');
+                                
+                                // Metric name cell
+                                const metricCell = document.createElement('td');
+                                metricCell.textContent = metric;
+                                row.appendChild(metricCell);
+                                
+                                // Value cell
+                                const valueCell = document.createElement('td');
+                                valueCell.className = 'metric-value';
+                                
+                                if (value === null || value === undefined) {
+                                    valueCell.textContent = 'N/A';
+                                    valueCell.className += ' metric-null';
+                                } else if (typeof value === 'boolean') {
+                                    valueCell.textContent = value ? 'Yes' : 'No';
+                                    valueCell.className += value ? ' metric-good' : ' metric-bad';
+                                } else if (typeof value === 'object') {
+                                    valueCell.textContent = JSON.stringify(value);
+                                } else {
+                                    valueCell.textContent = String(value);
+                                    
+                                    // Color code scores
+                                    if (metric.includes('Score') && typeof value === 'number') {
+                                        if (value >= 90) {
+                                            valueCell.className += ' metric-good';
+                                        } else if (value >= 50) {
+                                            valueCell.className += ' metric-warning';
+                                        } else {
+                                            valueCell.className += ' metric-bad';
+                                        }
+                                    }
+                                }
+                                
+                                row.appendChild(valueCell);
+                                dbTableBody.appendChild(row);
+                            });
+                        });
+                    }
+                }
+                
+                // Display screenshots
+                if (data.screenshots && data.screenshots.length > 0) {
+                    screenshotsDiv.style.display = 'block';
+                    
+                    data.screenshots.forEach(screenshot => {
+                        const container = document.createElement('div');
+                        container.className = 'screenshot-container';
+                        
+                        const label = document.createElement('div');
+                        label.className = 'screenshot-label';
+                        label.textContent = `${screenshot.viewport_type || 'Screenshot'} (${screenshot.viewport_width}x${screenshot.viewport_height})`;
+                        container.appendChild(label);
+                        
+                        if (screenshot.image_url) {
+                            const img = document.createElement('img');
+                            // Fix the data URL format
+                            if (screenshot.image_url.startsWith('data:image')) {
+                                img.src = screenshot.image_url;
+                            } else {
+                                img.src = `data:image/webp;base64,${screenshot.image_url}`;
+                            }
+                            img.alt = screenshot.viewport_type || 'Screenshot';
+                            img.onerror = function() {
+                                console.error('Failed to load screenshot');
+                                this.style.display = 'none';
+                                const errorMsg = document.createElement('div');
+                                errorMsg.textContent = 'Failed to load screenshot';
+                                errorMsg.style.color = '#999';
+                                container.appendChild(errorMsg);
+                            };
+                            container.appendChild(img);
+                        } else {
+                            const noImage = document.createElement('div');
+                            noImage.textContent = 'No image URL available';
+                            noImage.style.color = '#999';
+                            container.appendChild(noImage);
+                        }
+                        
+                        screenshotContainer.appendChild(container);
+                    });
+                }
+                
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.style.color = 'red';
+                console.error('Assessment error:', error);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Run Assessment';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Current Page</title>
+</head>
+<body>
+    <h1>Test What Page You're Seeing</h1>
+    <p>Open this URL in your browser: <a href="http://localhost:8001/api/v1/simple-assessment/">http://localhost:8001/api/v1/simple-assessment/</a></p>
+    
+    <h2>If you see the OLD page, it will have:</h2>
+    <ul>
+        <li>A "Scripts section" in the source</li>
+        <li>Raw JSON displayed</li>
+        <li>No "Decomposed Metrics" section</li>
+    </ul>
+    
+    <h2>If you see the NEW page, it will have:</h2>
+    <ul>
+        <li>Title: "Simple Assessment - Database Row Display"</li>
+        <li>A form with URL and Business Name fields</li>
+        <li>A "Decomposed Metrics (53 Individual Metrics)" section that appears after running</li>
+        <li>Categories like PageSpeed, Security, Google Business Profile, etc.</li>
+    </ul>
+    
+    <h2>Current Docker Status:</h2>
+    <pre id="status"></pre>
+    
+    <script>
+        fetch('http://localhost:8001/api/v1/simple-assessment/')
+            .then(r => r.text())
+            .then(html => {
+                const hasDecomposed = html.includes('Decomposed Metrics');
+                const hasScriptsSection = html.includes('Scripts section');
+                const title = html.match(/<title>(.*?)<\/title>/)?.[1] || 'Unknown';
+                
+                document.getElementById('status').textContent = 
+                    `Title found: ${title}\n` +
+                    `Has Decomposed Metrics: ${hasDecomposed}\n` +
+                    `Has Scripts Section: ${hasScriptsSection}\n` +
+                    `Page length: ${html.length} characters`;
+            })
+            .catch(e => {
+                document.getElementById('status').textContent = `Error: ${e.message}`;
+            });
+    </script>
+</body>
+</html>

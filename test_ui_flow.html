@@ -1,98 +1,397 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Test UI Individual Metrics Display</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeadFactory Assessment Test UI</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .form-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"], input[type="url"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #764ba2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .results-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .component-result {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #e0e0e0;
+        }
+        .component-result.success {
+            background: #f0f9ff;
+            border-color: #4ade80;
+        }
+        .component-result.error {
+            background: #fef2f2;
+            border-color: #f87171;
+        }
+        .component-result.pending {
+            background: #fefce8;
+            border-color: #fbbf24;
+        }
+        .component-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-icon {
+            width: 20px;
+            height: 20px;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        .metric-label {
+            color: #666;
+        }
+        .metric-value {
+            font-weight: 600;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error-message {
+            color: #dc2626;
+            margin-top: 10px;
+            padding: 10px;
+            background: #fef2f2;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
 </head>
 <body>
-    <h1>Testing Individual Metrics Display</h1>
-    <p>This simulates the actual UI results format</p>
-    
-    <table border="1">
-        <thead>
-            <tr>
-                <th>Metric</th>
-                <th>Value</th>
-                <th>Status</th>
-                <th>Source</th>
-                <th>Description</th>
-            </tr>
-        </thead>
-        <tbody id="resultsBody">
-        </tbody>
-    </table>
+    <div class="header">
+        <h1>LeadFactory Assessment Test UI</h1>
+        <p>Test the assessment flow with mock data</p>
+    </div>
+
+    <div class="form-container">
+        <h2>Enter Business Information</h2>
+        <form id="assessmentForm">
+            <div class="form-group">
+                <label for="businessName">Business Name</label>
+                <input type="text" id="businessName" name="businessName" value="Example Business" required>
+            </div>
+            <div class="form-group">
+                <label for="websiteUrl">Website URL</label>
+                <input type="url" id="websiteUrl" name="websiteUrl" value="https://example.com" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Business Email</label>
+                <input type="text" id="email" name="email" value="contact@example.com">
+            </div>
+            <button type="submit" id="submitBtn">Run Assessment</button>
+        </form>
+        <div class="error-message" id="errorMessage"></div>
+    </div>
+
+    <div class="results-container" id="resultsContainer">
+        <h2>Assessment Results</h2>
+        <div id="resultsContent"></div>
+    </div>
 
     <script>
-        // Simulate the actual response format
-        const testResults = {
-            "total_reviews": {
-                "status": "success",
-                "metric": "Total Reviews",
-                "value": "267",
-                "source": "Google Business Profile",
-                "description": "Total public reviews on GBP"
-            },
-            "avg_rating": {
-                "status": "success",
-                "metric": "Average Rating",
-                "value": "4.6/5",
-                "source": "Google Business Profile",
-                "description": "Average star rating (1–5)"
-            },
-            "fcp": {
-                "status": "success",
-                "metric": "First Contentful Paint (FCP)",
-                "value": "1200ms",
-                "source": "PageSpeed",
-                "description": "Time to first text/image paint - Core Web Vital"
-            },
-            "https_enforced": {
-                "status": "success",
-                "metric": "HTTPS Enforced",
-                "value": "Yes",
-                "source": "Security Analysis",
-                "description": "Redirects to HTTPS + valid certificate flag"
-            }
-        };
-
-        // Use the same displayResults function from our UI
-        function displayResults(results) {
-            const resultsBody = document.getElementById('resultsBody');
-            
-            if (!results) {
-                resultsBody.innerHTML = '<tr><td colspan="5">No results available</td></tr>';
-                return;
-            }
-            
-            let html = '';
-            
-            // Display individual granular metrics
-            Object.entries(results).forEach(([metricKey, metricData]) => {
-                const metric = metricData.metric || metricKey;
-                const value = metricData.value || 'N/A';
-                const status = metricData.status || 'Unknown';
-                const source = metricData.source || 'System';
-                const description = metricData.description || 'No description available';
-                
-                html += `
-                    <tr>
-                        <td>${metric}</td>
-                        <td>${value}</td>
-                        <td>${status}</td>
-                        <td>${source}</td>
-                        <td>${description}</td>
-                    </tr>
-                `;
-            });
-            
-            if (html === '') {
-                html = '<tr><td colspan="5">No assessment data found</td></tr>';
-            }
-            
-            resultsBody.innerHTML = html;
+        // Mock assessment data generator
+        function generateMockResults() {
+            return {
+                pagespeed: {
+                    status: 'success',
+                    data: {
+                        performance_score: Math.floor(Math.random() * 30) + 70,
+                        accessibility_score: Math.floor(Math.random() * 20) + 80,
+                        best_practices_score: Math.floor(Math.random() * 25) + 75,
+                        seo_score: Math.floor(Math.random() * 20) + 80,
+                        desktop_score: Math.floor(Math.random() * 30) + 70,
+                        mobile_score: Math.floor(Math.random() * 40) + 60
+                    }
+                },
+                security: {
+                    status: 'success',
+                    data: {
+                        https_enabled: true,
+                        ssl_valid: true,
+                        vulnerabilities_count: Math.floor(Math.random() * 3),
+                        security_headers_score: Math.floor(Math.random() * 40) + 60
+                    }
+                },
+                seo: {
+                    status: 'success',
+                    data: {
+                        overall_score: Math.floor(Math.random() * 30) + 70,
+                        title_tag_score: Math.floor(Math.random() * 20) + 80,
+                        meta_description_score: Math.floor(Math.random() * 25) + 75,
+                        heading_structure_score: Math.floor(Math.random() * 20) + 80,
+                        schema_markup_present: Math.random() > 0.5
+                    }
+                },
+                screenshots: {
+                    status: 'error',
+                    error: 'ScreenshotOne API key not configured (mock mode)',
+                    data: {
+                        desktop_captured: false,
+                        mobile_captured: false
+                    }
+                },
+                gbp: {
+                    status: 'success',
+                    data: {
+                        profile_found: Math.random() > 0.3,
+                        claimed: Math.random() > 0.5,
+                        rating: (Math.random() * 2 + 3).toFixed(1),
+                        review_count: Math.floor(Math.random() * 100) + 10
+                    }
+                }
+            };
         }
 
-        // Test the display
-        displayResults(testResults);
+        // Form submission handler
+        document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const resultsContent = document.getElementById('resultsContent');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Reset states
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Running Assessment...';
+            errorMessage.style.display = 'none';
+            resultsContainer.style.display = 'block';
+            
+            // Show loading state
+            resultsContent.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Running comprehensive assessment...</p>
+                </div>
+            `;
+            
+            // Simulate API call delay
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            try {
+                // Generate mock results
+                const results = generateMockResults();
+                
+                // Display results
+                let html = '';
+                
+                // PageSpeed results
+                html += `
+                    <div class="component-result ${results.pagespeed.status}">
+                        <div class="component-title">
+                            <span>PageSpeed Insights</span>
+                            ${results.pagespeed.status === 'success' ? '✅' : '❌'}
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Performance Score:</span>
+                            <span class="metric-value">${results.pagespeed.data.performance_score}/100</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Mobile Score:</span>
+                            <span class="metric-value">${results.pagespeed.data.mobile_score}/100</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Desktop Score:</span>
+                            <span class="metric-value">${results.pagespeed.data.desktop_score}/100</span>
+                        </div>
+                    </div>
+                `;
+                
+                // Security results
+                html += `
+                    <div class="component-result ${results.security.status}">
+                        <div class="component-title">
+                            <span>Security Analysis</span>
+                            ${results.security.status === 'success' ? '✅' : '❌'}
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">HTTPS Enabled:</span>
+                            <span class="metric-value">${results.security.data.https_enabled ? 'Yes' : 'No'}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Vulnerabilities Found:</span>
+                            <span class="metric-value">${results.security.data.vulnerabilities_count}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Security Headers Score:</span>
+                            <span class="metric-value">${results.security.data.security_headers_score}/100</span>
+                        </div>
+                    </div>
+                `;
+                
+                // SEO results
+                html += `
+                    <div class="component-result ${results.seo.status}">
+                        <div class="component-title">
+                            <span>SEO Analysis</span>
+                            ${results.seo.status === 'success' ? '✅' : '❌'}
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Overall SEO Score:</span>
+                            <span class="metric-value">${results.seo.data.overall_score}/100</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Title Tag Score:</span>
+                            <span class="metric-value">${results.seo.data.title_tag_score}/100</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Schema Markup:</span>
+                            <span class="metric-value">${results.seo.data.schema_markup_present ? 'Present' : 'Missing'}</span>
+                        </div>
+                    </div>
+                `;
+                
+                // Screenshot results
+                html += `
+                    <div class="component-result ${results.screenshots.status}">
+                        <div class="component-title">
+                            <span>Screenshot Capture</span>
+                            ${results.screenshots.status === 'success' ? '✅' : '❌'}
+                        </div>
+                        ${results.screenshots.error ? 
+                            `<p style="color: #dc2626;">${results.screenshots.error}</p>` :
+                            `<div class="metric">
+                                <span class="metric-label">Desktop Screenshot:</span>
+                                <span class="metric-value">${results.screenshots.data.desktop_captured ? 'Captured' : 'Failed'}</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Mobile Screenshot:</span>
+                                <span class="metric-value">${results.screenshots.data.mobile_captured ? 'Captured' : 'Failed'}</span>
+                            </div>`
+                        }
+                    </div>
+                `;
+                
+                // Google Business Profile results
+                html += `
+                    <div class="component-result ${results.gbp.status}">
+                        <div class="component-title">
+                            <span>Google Business Profile</span>
+                            ${results.gbp.status === 'success' ? '✅' : '❌'}
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Profile Found:</span>
+                            <span class="metric-value">${results.gbp.data.profile_found ? 'Yes' : 'No'}</span>
+                        </div>
+                        ${results.gbp.data.profile_found ? `
+                            <div class="metric">
+                                <span class="metric-label">Claimed:</span>
+                                <span class="metric-value">${results.gbp.data.claimed ? 'Yes' : 'No'}</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Rating:</span>
+                                <span class="metric-value">${results.gbp.data.rating} ⭐</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Reviews:</span>
+                                <span class="metric-value">${results.gbp.data.review_count}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                
+                // Summary
+                html += `
+                    <div style="margin-top: 30px; padding: 20px; background: #f0f9ff; border-radius: 5px;">
+                        <h3>Assessment Summary</h3>
+                        <p><strong>Website:</strong> ${document.getElementById('websiteUrl').value}</p>
+                        <p><strong>Business:</strong> ${document.getElementById('businessName').value}</p>
+                        <p><strong>Components Tested:</strong> 5</p>
+                        <p><strong>Status:</strong> Assessment completed with mock data</p>
+                        <p style="margin-top: 15px; color: #666;">
+                            <em>Note: This is a test UI with mock data. In production, this would connect to the actual assessment API endpoints.</em>
+                        </p>
+                    </div>
+                `;
+                
+                resultsContent.innerHTML = html;
+                
+            } catch (error) {
+                errorMessage.textContent = 'Error running assessment: ' + error.message;
+                errorMessage.style.display = 'block';
+                resultsContainer.style.display = 'none';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Run Assessment';
+            }
+        });
     </script>
 </body>
 </html>

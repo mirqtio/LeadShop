@@ -1,0 +1,1488 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeadShop - Comprehensive Website Assessment</title>
+    <!-- Google OAuth 2.0 -->
+    <script src="https://accounts.google.com/gsi/client" async="" defer=""></script>
+    <style>
+        /* Reset and base styles using Anthracite design system */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            /* Anthracite Design System Colors */
+            --anthracite: #0a0a0a;
+            --white: #ffffff;
+            --synthesis-blue: #0066ff;
+            --synthesis-blue-hover: #0052cc;
+            --critical: #dc2626;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --neutral: #6b7280;
+            --light-bg: #f8f9fa;
+            --border: #e9ecef;
+            --dark-text: #2d3748;
+            --text-muted: #6c757d;
+            
+            /* Typography */
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            --font-display: 72px;
+            --font-h1: 48px;
+            --font-h2: 36px;
+            --font-h3: 28px;
+            --font-h4: 20px;
+            --font-body-large: 18px;
+            --font-body: 16px;
+            --font-body-small: 14px;
+            --font-caption: 12px;
+            
+            /* Spacing */
+            --space-xs: 8px;
+            --space-sm: 16px;
+            --space-md: 24px;
+            --space-lg: 32px;
+            --space-xl: 48px;
+            --space-2xl: 64px;
+            --space-3xl: 80px;
+            
+            /* Animation */
+            --duration-micro: 150ms;
+            --duration-standard: 200ms;
+            --duration-page: 300ms;
+            --duration-data: 400ms;
+            --easing-out: ease-out;
+            --easing-in-out: ease-in-out;
+        }
+        
+        body {
+            font-family: var(--font-family);
+            background: var(--light-bg);
+            color: var(--dark-text);
+            line-height: 1.6;
+            font-size: var(--font-body);
+        }
+        
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-xl);
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--anthracite) 0%, #1a1a1a 100%);
+            color: var(--white);
+            padding: var(--space-3xl) var(--space-xl);
+            margin: calc(-1 * var(--space-xl)) calc(-1 * var(--space-xl)) var(--space-2xl);
+            border-radius: 16px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: var(--font-h1);
+            font-weight: 300;
+            margin-bottom: var(--space-sm);
+            letter-spacing: -0.02em;
+        }
+        
+        .header p {
+            font-size: var(--font-body-large);
+            opacity: 0.8;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--white);
+            padding: var(--space-xl);
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+            border: 1px solid var(--border);
+            margin-bottom: var(--space-xl);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-md);
+            padding-bottom: var(--space-md);
+            border-bottom: 2px solid var(--light-bg);
+        }
+        
+        .card-title {
+            font-size: var(--font-h3);
+            font-weight: 500;
+            color: var(--anthracite);
+        }
+        
+        /* Form Elements */
+        .form-group {
+            margin-bottom: var(--space-md);
+        }
+        
+        .form-label {
+            display: block;
+            font-size: var(--font-body-small);
+            font-weight: 600;
+            color: var(--dark-text);
+            margin-bottom: var(--space-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: var(--space-sm) var(--space-md);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: var(--font-body);
+            font-family: var(--font-family);
+            transition: all var(--duration-standard) var(--easing-out);
+            background: var(--white);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--synthesis-blue);
+            box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
+        }
+        
+        .form-input::placeholder {
+            color: var(--neutral);
+        }
+        
+        /* URL Input specific */
+        .url-input {
+            font-family: var(--font-mono);
+            font-size: var(--font-body-small);
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-xs);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: 8px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all var(--duration-standard) var(--easing-out);
+            border: none;
+            cursor: pointer;
+            font-size: var(--font-body);
+            font-family: var(--font-family);
+            min-height: 48px;
+        }
+        
+        .btn-primary {
+            background: var(--synthesis-blue);
+            color: var(--white);
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: var(--synthesis-blue-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,102,255,0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: var(--neutral);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-large {
+            padding: var(--space-md) var(--space-lg);
+            font-size: var(--font-body-large);
+            min-height: 56px;
+        }
+        
+        /* Status Components */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: var(--font-caption);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .status-pending {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+        
+        .status-running {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .status-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-failed {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        /* Progress Bar */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: var(--space-sm) 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--synthesis-blue);
+            transition: width var(--duration-data) var(--easing-out);
+        }
+        
+        /* Component Status Grid */
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-md) 0;
+        }
+        
+        .component-card {
+            background: var(--light-bg);
+            padding: var(--space-md);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            transition: all var(--duration-standard) var(--easing-out);
+        }
+        
+        .component-card:hover {
+            border-color: var(--synthesis-blue);
+            box-shadow: 0 2px 8px rgba(0,102,255,0.1);
+        }
+        
+        .component-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-sm);
+        }
+        
+        .component-name {
+            font-weight: 600;
+            color: var(--dark-text);
+        }
+        
+        .component-icon {
+            font-size: 24px;
+            margin-right: var(--space-xs);
+        }
+        
+        /* Loading States */
+        .loading {
+            display: none;
+            align-items: center;
+            gap: var(--space-xs);
+        }
+        
+        .loading.show {
+            display: inline-flex;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--white);
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .spinner-dark {
+            border-color: var(--neutral);
+            border-top-color: transparent;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Results Section */
+        .results-container {
+            display: none;
+        }
+        
+        .results-container.show {
+            display: block;
+            animation: fadeIn var(--duration-page) var(--easing-out);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Score Display */
+        .score-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-md);
+            margin: var(--space-md) 0;
+        }
+        
+        .score-card {
+            text-align: center;
+            padding: var(--space-md);
+            background: var(--light-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        
+        .score-value {
+            font-size: var(--font-h2);
+            font-weight: 300;
+            color: var(--synthesis-blue);
+            margin-bottom: var(--space-xs);
+        }
+        
+        .score-label {
+            font-size: var(--font-body-small);
+            color: var(--neutral);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        /* Metrics Table */
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: var(--space-md);
+        }
+        
+        .metrics-table th {
+            background: var(--anthracite);
+            color: var(--white);
+            padding: var(--space-md);
+            text-align: left;
+            font-weight: 600;
+            font-size: var(--font-body-small);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .metrics-table td {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        
+        .metrics-table tr:hover {
+            background: #fafbfc;
+        }
+        
+        .metric-category {
+            background: var(--light-bg) !important;
+            font-weight: 600;
+            color: var(--dark-text);
+            font-size: var(--font-body);
+        }
+        
+        .metric-name {
+            font-weight: 500;
+            color: var(--dark-text);
+        }
+        
+        .metric-value {
+            font-family: var(--font-mono);
+            font-weight: 600;
+        }
+        
+        .metric-good {
+            color: var(--success);
+        }
+        
+        .metric-warning {
+            color: var(--warning);
+        }
+        
+        .metric-critical {
+            color: var(--critical);
+        }
+        
+        .metric-neutral {
+            color: var(--neutral);
+        }
+        
+        /* Visual Scores */
+        .visual-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+        
+        .visual-score-item {
+            text-align: center;
+            padding: var(--space-md);
+            background: var(--light-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        
+        .visual-score-value {
+            font-size: var(--font-h3);
+            font-weight: 300;
+            margin-bottom: var(--space-xs);
+        }
+        
+        .visual-score-label {
+            font-size: var(--font-caption);
+            color: var(--text-muted);
+        }
+        
+        /* Error Display */
+        .error-container {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: var(--space-md);
+            margin: var(--space-md) 0;
+        }
+        
+        .error-title {
+            font-weight: 600;
+            color: var(--critical);
+            margin-bottom: var(--space-xs);
+        }
+        
+        .error-stack {
+            font-family: var(--font-mono);
+            font-size: var(--font-body-small);
+            color: #991b1b;
+            white-space: pre-wrap;
+            background: rgba(255,255,255,0.5);
+            padding: var(--space-sm);
+            border-radius: 4px;
+            margin-top: var(--space-sm);
+        }
+        
+        /* Alert Messages */
+        .alert {
+            padding: var(--space-sm) var(--space-md);
+            border-radius: 8px;
+            margin: var(--space-sm) 0;
+            font-size: var(--font-body-small);
+            display: none;
+        }
+        
+        .alert.show {
+            display: block;
+        }
+        
+        .alert-error {
+            background: #fee2e2;
+            color: var(--critical);
+            border: 1px solid #fecaca;
+        }
+        
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--space-md);
+            }
+            
+            .header {
+                padding: var(--space-xl) var(--space-md);
+                margin: calc(-1 * var(--space-md)) calc(-1 * var(--space-md)) var(--space-xl);
+            }
+            
+            .header h1 {
+                font-size: var(--font-h2);
+            }
+            
+            .card {
+                padding: var(--space-md);
+            }
+            
+            .component-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .score-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .visual-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            .metrics-table {
+                font-size: var(--font-body-small);
+            }
+            
+            .metrics-table th,
+            .metrics-table td {
+                padding: var(--space-xs) var(--space-sm);
+            }
+        }
+        
+        /* Utility Classes */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-muted { color: var(--text-muted); }
+        .mb-0 { margin-bottom: 0; }
+        .mt-md { margin-top: var(--space-md); }
+        .mt-lg { margin-top: var(--space-lg); }
+    </style>
+<link id="googleidentityservice" type="text/css" media="all" href="https://accounts.google.com/gsi/style" rel="stylesheet"><meta http-equiv="origin-trial" content="A8o5T4MyEkRZqLA9WeG2XTFdV5tsX2Prg85xyQ+RL1btVuybB1K/EQ+7JUsPK+J32oBMTnsoF9B4A+qTlL6efgQAAABweyJvcmlnaW4iOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb206NDQzIiwiZmVhdHVyZSI6IkZlZENtQnV0dG9uTW9kZSIsImV4cGlyeSI6MTc0NDY3NTIwMCwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><style id="googleidentityservice_button_styles">.qJTHM{-webkit-user-select:none;color:#202124;direction:ltr;-webkit-touch-callout:none;font-family:"Roboto-Regular",arial,sans-serif;-webkit-font-smoothing:antialiased;font-weight:400;margin:0;overflow:hidden;-webkit-text-size-adjust:100%}.ynRLnc{left:-9999px;position:absolute;top:-9999px}.L6cTce{display:none}.bltWBb{word-break:break-all}.hSRGPd{color:#1a73e8;cursor:pointer;font-weight:500;text-decoration:none}.Bz112c-W3lGp{height:16px;width:16px}.Bz112c-E3DyYd{height:20px;width:20px}.Bz112c-r9oPif{height:24px;width:24px}.Bz112c-u2z5K{height:36px;width:36px}.Bz112c-uaxL4e{-webkit-border-radius:10px;border-radius:10px}.LgbsSe-Bz112c{display:block}.S9gUrf-YoZ4jf,.S9gUrf-YoZ4jf *{border:none;margin:0;padding:0}.fFW7wc-ibnC6b>.aZ2wEe>div{border-color:#4285f4}.P1ekSe-ZMv3u>div:nth-child(1){background-color:#1a73e8!important}.P1ekSe-ZMv3u>div:nth-child(2),.P1ekSe-ZMv3u>div:nth-child(3){background-image:linear-gradient(to right,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(to right,#1a73e8,#1a73e8)!important}.haAclf{display:inline-block}.nsm7Bb-HzV7m-LgbsSe{-webkit-border-radius:4px;border-radius:4px;-webkit-box-sizing:border-box;box-sizing:border-box;-webkit-transition:background-color .218s,border-color .218s;transition:background-color .218s,border-color .218s;-webkit-user-select:none;-webkit-appearance:none;background-color:#fff;background-image:none;border:1px solid #dadce0;color:#3c4043;cursor:pointer;font-family:"Google Sans",arial,sans-serif;font-size:14px;height:40px;letter-spacing:0.25px;outline:none;overflow:hidden;padding:0 12px;position:relative;text-align:center;vertical-align:middle;white-space:nowrap;width:auto}@media screen and (-ms-high-contrast:active){.nsm7Bb-HzV7m-LgbsSe{border:2px solid windowText;color:windowText}}@media screen and (preferes-contrast:more){.nsm7Bb-HzV7m-LgbsSe{color:#000}}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe{font-size:14px;height:32px;letter-spacing:0.25px;padding:0 10px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe{font-size:11px;height:20px;letter-spacing:0.3px;padding:0 8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe{padding:0;width:40px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe{width:32px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe{width:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK{-webkit-border-radius:20px;border-radius:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.pSzOP-SxQuSe{-webkit-border-radius:16px;border-radius:16px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.purZT-SxQuSe{-webkit-border-radius:10px;border-radius:10px}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc{border:none;color:#fff}.nsm7Bb-HzV7m-LgbsSe.MFS4be-v3pZbf-Ia7Qfc{background-color:#1a73e8}.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{background-color:#202124;color:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{color:#fff}}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:18px;margin-right:8px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:14px;min-width:14px;width:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:10px;min-width:10px;width:10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin-left:8px;margin-right:-4px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:10px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:4px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{-webkit-border-top-left-radius:3px;border-top-left-radius:3px;-webkit-border-bottom-left-radius:3px;border-bottom-left-radius:3px;display:-webkit-box;display:-webkit-flex;display:flex;justify-content:center;-webkit-align-items:center;align-items:center;background-color:#fff;height:36px;margin-left:-10px;margin-right:12px;min-width:36px;width:36px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c,.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:28px;margin-left:-8px;margin-right:10px;min-width:28px;width:28px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:16px;margin-left:-6px;margin-right:8px;min-width:16px;width:16px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{-webkit-border-radius:3px;border-radius:3px;margin-left:2px;margin-right:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{-webkit-border-radius:18px;border-radius:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{-webkit-border-radius:14px;border-radius:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{-webkit-border-radius:8px;border-radius:8px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-bN97Pc-sM5MNb{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-flex-direction:row;flex-direction:row;justify-content:space-between;-webkit-flex-wrap:nowrap;flex-wrap:nowrap;height:100%;position:relative;width:100%}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX{justify-content:center}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:1;flex-grow:1;font-family:"Google Sans",arial,sans-serif;font-weight:500;overflow:hidden;text-overflow:ellipsis;vertical-align:top}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-weight:300}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:0;flex-grow:0}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-MJoBVe{-webkit-transition:background-color .218s;transition:background-color .218s;bottom:0;left:0;position:absolute;right:0;top:0}.nsm7Bb-HzV7m-LgbsSe:hover,.nsm7Bb-HzV7m-LgbsSe:focus{-webkit-box-shadow:none;box-shadow:none;border-color:rgb(210,227,252);outline:none}.nsm7Bb-HzV7m-LgbsSe:focus-within{outline:2px solid #00639b;border-color:transparent}.nsm7Bb-HzV7m-LgbsSe:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.08)}.nsm7Bb-HzV7m-LgbsSe:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.1)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.24)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.32)}.nsm7Bb-HzV7m-LgbsSe .n1UuX-DkfjY{-webkit-border-radius:50%;border-radius:50%;display:-webkit-box;display:-webkit-flex;display:flex;height:20px;margin-left:-4px;margin-right:8px;min-width:20px;width:20px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-family:"Roboto";font-size:12px;text-align:left}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .ssJRIf,.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .fmcmS{overflow:hidden;text-overflow:ellipsis}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;color:#5f6368;fill:#5f6368;font-size:11px;font-weight:400}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#e8eaed;fill:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff,.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#000;fill:#000}}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .Bz112c{height:18px;margin:-3px -3px -3px 2px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{-webkit-border-top-left-radius:0;border-top-left-radius:0;-webkit-border-bottom-left-radius:0;border-bottom-left-radius:0;-webkit-border-top-right-radius:3px;border-top-right-radius:3px;-webkit-border-bottom-right-radius:3px;border-bottom-right-radius:3px;margin-left:12px;margin-right:-10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{-webkit-border-radius:18px;border-radius:18px}.L5Fo6c-sM5MNb{border:0;display:block;left:0;position:relative;top:0}.L5Fo6c-bF1uUb{-webkit-border-radius:4px;border-radius:4px;bottom:0;cursor:pointer;left:0;position:absolute;right:0;top:0}.L5Fo6c-bF1uUb:focus{border:none;outline:none}sentinel{}</style></head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Comprehensive Website Assessment</h1>
+            <p>Complete technical analysis with PageSpeed, Security, SEO, Visual UI, and Business Impact metrics</p>
+        </header>
+        
+        <!-- Authentication Section -->
+        <section class="card" id="authSection" style="display: none;">
+            <div class="text-center" style="padding: var(--space-xl);">
+                <h3 style="margin-bottom: var(--space-md); color: var(--dark-text);">Sign in to start assessment</h3>
+                <p style="margin-bottom: var(--space-lg); color: var(--neutral);">Sign in with Google to access comprehensive website assessment tools</p>
+                <div id="g_id_onload" data-client_id="" data-context="signin" data-ux_mode="popup" data-callback="handleGoogleAuth">
+                </div>
+                <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="signin_with" data-size="large" data-logo_alignment="left"><div class="S9gUrf-YoZ4jf" style="position: relative;"><div><div tabindex="0" role="button" aria-labelledby="button-label" class="nsm7Bb-HzV7m-LgbsSe  hJDwNd-SxQuSe i5vt6e-Ia7Qfc uaxL4e-RbRzK"><div class="nsm7Bb-HzV7m-LgbsSe-MJoBVe"></div><div class="nsm7Bb-HzV7m-LgbsSe-bN97Pc-sM5MNb "><div class="nsm7Bb-HzV7m-LgbsSe-Bz112c"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" class="LgbsSe-Bz112c"><g><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></g></svg></div><span class="nsm7Bb-HzV7m-LgbsSe-BPrWId">Sign in with Google</span><span class="L6cTce" id="button-label">Sign in with Google. Opens in new tab</span></div></div></div><iframe src="https://accounts.google.com/gsi/button?type=standard&amp;shape=rectangular&amp;theme=outline&amp;text=signin_with&amp;size=large&amp;logo_alignment=left&amp;is_fedcm_supported=true&amp;client_id=undefined&amp;iframe_id=gsi_192199_948218&amp;cas=NNC4p%2ByW0E6DquzA4Lz%2F3JNZ2e%2FWYAiVXYcd5GxkwVo" class="L5Fo6c-PQbLGe" allow="identity-credentials-get" id="gsi_192199_948218" title="Sign in with Google Button" style="display: block; position: relative; top: 0px; left: 0px; height: 0px; width: 0px; border: 0px;"></iframe></div></div>
+            </div>
+        </section>
+
+        <!-- Assessment Form -->
+        <section class="card" id="assessmentFormSection" style="display: block;">
+            <div class="card-header">
+                <h2 class="card-title">Assessment Configuration</h2>
+                <div id="userInfo" style="display: flex; align-items: center; gap: var(--space-sm);">
+                    <img id="userPicture" src="https://via.placeholder.com/40" alt="User" style="width: 32px; height: 32px; border-radius: 50%;">
+                    <div>
+                        <div id="userName" style="font-weight: 500; font-size: var(--font-body-small);">Test User</div>
+                        <div id="userEmail" style="font-size: var(--font-caption); color: var(--neutral);">test@example.com</div>
+                    </div>
+                    <button id="signOutBtn" style="margin-left: var(--space-md); background: none; border: none; color: var(--neutral); cursor: pointer; font-size: var(--font-body-small);">Sign Out</button>
+                </div>
+            </div>
+
+            <form id="assessmentForm">
+                <div class="form-group">
+                    <label class="form-label" for="websiteUrl">Website URL *</label>
+                    <input type="url" id="websiteUrl" class="form-input url-input" placeholder="https://example.com" required="" style="">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="businessName">Business Name (Optional)</label>
+                    <input type="text" id="businessName" class="form-input" placeholder="Acme Corporation" style="">
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-large" id="analyzeBtn" style="width: 100%;">
+                    <span class="btn-text">Start Comprehensive Analysis</span>
+                    <span class="loading">
+                        <span class="spinner"></span>
+                        Starting Analysis...
+                    </span>
+                </button>
+                
+                <div class="alert alert-error" id="errorMessage"></div>
+                <div class="alert alert-success" id="successMessage"></div>
+                <div class="alert alert-info" id="infoMessage">Authentication bypassed for testing</div>
+            </form>
+        </section>
+        
+        <!-- Assessment Progress -->
+        <section class="card" id="progressSection" style="display: none;">
+            <div class="card-header">
+                <h2 class="card-title">Assessment Progress</h2>
+                <span class="status-indicator status-running">
+                    <span class="spinner spinner-dark"></span>
+                    Running
+                </span>
+            </div>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+            </div>
+            
+            <div class="component-grid" id="componentStatus">
+                <!-- Component status cards will be inserted here -->
+            </div>
+        </section>
+        
+        <!-- Results Section -->
+        <div class="results-container" id="resultsContainer">
+            <!-- Overall Scores -->
+            <section class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Overall Assessment Results</h2>
+                    <span id="assessmentUrl" class="text-muted" style="font-family: var(--font-mono); font-size: var(--font-body-small);"></span>
+                </div>
+                
+                <div class="score-grid" id="overallScores">
+                    <!-- Score cards will be inserted here -->
+                </div>
+            </section>
+            
+            <!-- Detailed Metrics -->
+            <section class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Detailed Metrics Analysis</h2>
+                </div>
+                
+                <table class="metrics-table" id="metricsTable">
+                    <thead>
+                        <tr>
+                            <th width="30%">Metric</th>
+                            <th width="25%">Value</th>
+                            <th width="20%">Status</th>
+                            <th width="25%">Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="metricsTableBody">
+                        <!-- Metrics rows will be inserted here -->
+                    </tbody>
+                </table>
+            </section>
+            
+            <!-- Visual Analysis Scores -->
+            <section class="card" id="visualScoresSection" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title">Visual Analysis Rubrics</h2>
+                </div>
+                
+                <div class="visual-grid" id="visualScores">
+                    <!-- Visual score items will be inserted here -->
+                </div>
+            </section>
+            
+            <!-- Errors Section -->
+            <section class="card" id="errorsSection" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title">Component Errors</h2>
+                </div>
+                
+                <div id="errorsList">
+                    <!-- Error details will be inserted here -->
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        // Global configuration and state
+        let CONFIG = {};
+        let currentUser = null;
+        let accessToken = null;
+        let currentTaskId = null;
+        let pollInterval = null;
+        
+        // Component definitions
+        const ASSESSMENT_COMPONENTS = {
+            pagespeed: { name: 'PageSpeed Analysis', icon: '⚡' },
+            security: { name: 'Security Analysis', icon: '🛡️' },
+            tech_scraper: { name: 'Technical Analysis', icon: '🔧' },
+            gbp: { name: 'Google Business Profile', icon: '🏢' },
+            screenshots: { name: 'Screenshots', icon: '📱' },
+            semrush: { name: 'SEO Analysis', icon: '🔍' },
+            visual_analysis: { name: 'Visual Analysis', icon: '🎨' },
+            score_calculation: { name: 'Business Impact', icon: '📊' }
+        };
+        
+        // Visual rubric labels
+        const VISUAL_RUBRIC_LABELS = [
+            'First Impression',
+            'Visual Hierarchy',
+            'Color & Contrast',
+            'Typography',
+            'Layout & Spacing',
+            'Mobile Responsiveness',
+            'CTAs & Conversion',
+            'Brand Consistency',
+            'Trust Signals'
+        ];
+        
+        // Initialize the app
+        async function initializeApp() {
+            try {
+                // Get configuration from backend
+                const response = await fetch('/api/v1/assessment/config');
+                CONFIG = await response.json();
+                
+                // Auth disabled for testing - automatically bypass authentication
+                bypassAuth();
+                
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                showAlert('error', 'Failed to initialize application. Please refresh the page.');
+            }
+        }
+        
+        // Google OAuth callback (disabled for testing)
+        async function handleGoogleAuth(response) {
+            // Auth disabled - skip authentication
+            bypassAuth();
+        }
+        
+        // Bypass authentication for testing
+        function bypassAuth() {
+            // Skip auth and show the assessment form directly
+            accessToken = 'test-token'; // Dummy token for testing
+            currentUser = {
+                name: 'Test User',
+                email: 'test@example.com',
+                picture: 'https://via.placeholder.com/40'
+            };
+            
+            localStorage.setItem('access_token', accessToken);
+            localStorage.setItem('user_data', JSON.stringify(currentUser));
+            
+            showAssessmentForm();
+            showAlert('info', 'Authentication bypassed for testing');
+        }
+        
+        // Show assessment form after authentication
+        function showAssessmentForm() {
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('assessmentFormSection').style.display = 'block';
+            
+            // Update user info
+            if (currentUser) {
+                document.getElementById('userPicture').src = currentUser.picture || '';
+                document.getElementById('userName').textContent = currentUser.name || '';
+                document.getElementById('userEmail').textContent = currentUser.email || '';
+            }
+        }
+        
+        // Sign out function
+        function signOut() {
+            // Auth disabled - just refresh for testing
+            showAlert('info', 'Refreshing page (auth disabled for testing)');
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+        }
+        
+        // Alert helper
+        function showAlert(type, message) {
+            const alertMap = {
+                'error': 'errorMessage',
+                'success': 'successMessage',
+                'info': 'infoMessage'
+            };
+            
+            const alertEl = document.getElementById(alertMap[type]);
+            if (alertEl) {
+                alertEl.textContent = message;
+                alertEl.classList.add('show');
+                setTimeout(() => {
+                    alertEl.classList.remove('show');
+                }, 5000);
+            }
+        }
+        
+        // Clear all alerts
+        function clearAlerts() {
+            ['errorMessage', 'successMessage', 'infoMessage'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('show');
+            });
+        }
+        
+        // Execute assessment
+        async function executeAssessment(url, businessName) {
+            if (!accessToken) {
+                throw new Error('Not authenticated');
+            }
+            
+            const response = await fetch(CONFIG.assessment_endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                    url: url,
+                    business_name: businessName || null
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Assessment failed');
+            }
+            
+            return await response.json();
+        }
+        
+        // Poll for assessment status
+        async function pollAssessmentStatus(taskId) {
+            if (!accessToken) {
+                throw new Error('Not authenticated');
+            }
+            
+            const response = await fetch(`${CONFIG.status_endpoint}/${taskId}`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to get assessment status');
+            }
+            
+            return await response.json();
+        }
+        
+        // Update component status display
+        function updateComponentStatus(components) {
+            const container = document.getElementById('componentStatus');
+            container.innerHTML = '';
+            
+            let completedCount = 0;
+            const totalCount = Object.keys(ASSESSMENT_COMPONENTS).length;
+            
+            Object.entries(ASSESSMENT_COMPONENTS).forEach(([key, info]) => {
+                const status = components[key] || { status: 'pending' };
+                const statusValue = status.status?.value || status.status || 'pending';
+                
+                if (statusValue === 'success' || statusValue === 'failed') {
+                    completedCount++;
+                }
+                
+                const card = document.createElement('div');
+                card.className = 'component-card';
+                card.innerHTML = `
+                    <div class="component-header">
+                        <div>
+                            <span class="component-icon">${info.icon}</span>
+                            <span class="component-name">${info.name}</span>
+                        </div>
+                        <span class="status-indicator status-${statusValue}">
+                            ${statusValue === 'running' ? '<span class="spinner spinner-dark"></span>' : ''}
+                            ${statusValue}
+                        </span>
+                    </div>
+                    ${status.duration_ms ? `<div class="text-muted" style="font-size: var(--font-caption);">${status.duration_ms}ms</div>` : ''}
+                    ${status.error ? `<div style="color: var(--critical); font-size: var(--font-caption); margin-top: var(--space-xs);">${status.error}</div>` : ''}
+                `;
+                container.appendChild(card);
+            });
+            
+            // Update progress bar
+            const progress = (completedCount / totalCount) * 100;
+            document.getElementById('progressFill').style.width = `${progress}%`;
+        }
+        
+        // Monitor assessment progress
+        async function monitorAssessment(taskId, url) {
+            document.getElementById('progressSection').style.display = 'block';
+            updateComponentStatus({});
+            
+            const poll = async () => {
+                try {
+                    const status = await pollAssessmentStatus(taskId);
+                    
+                    if (status.status === 'completed' && status.result) {
+                        // Assessment completed
+                        clearInterval(pollInterval);
+                        displayResults(status.result, url);
+                        showAlert('success', 'Assessment completed successfully!');
+                        document.getElementById('progressSection').style.display = 'none';
+                        setLoading(false);
+                        
+                    } else if (status.status === 'failed') {
+                        // Assessment failed
+                        clearInterval(pollInterval);
+                        showAlert('error', `Assessment failed: ${status.error || 'Unknown error'}`);
+                        document.getElementById('progressSection').style.display = 'none';
+                        setLoading(false);
+                        
+                    } else if (status.status === 'in_progress' && status.progress) {
+                        // Update progress
+                        if (status.progress.components) {
+                            updateComponentStatus(status.progress.components);
+                        }
+                        showAlert('info', `Assessment in progress... ${status.progress.message || ''}`);
+                    }
+                    
+                } catch (error) {
+                    console.error('Polling error:', error);
+                    clearInterval(pollInterval);
+                    showAlert('error', 'Failed to monitor assessment progress');
+                    document.getElementById('progressSection').style.display = 'none';
+                    setLoading(false);
+                }
+            };
+            
+            // Start polling
+            pollInterval = setInterval(poll, 2000);
+            poll(); // First poll immediately
+        }
+        
+        // Display comprehensive results
+        function displayResults(result, url) {
+            const execution = result.execution || result;
+            
+            // Show results container
+            document.getElementById('resultsContainer').classList.add('show');
+            document.getElementById('assessmentUrl').textContent = url;
+            
+            // Display overall scores
+            displayOverallScores(execution);
+            
+            // Display detailed metrics
+            displayDetailedMetrics(execution);
+            
+            // Display visual scores if available
+            displayVisualScores(execution.visual_analysis_result);
+            
+            // Display errors if any
+            displayErrors(execution);
+            
+            // Scroll to results
+            document.getElementById('resultsContainer').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
+        }
+        
+        // Display overall scores
+        function displayOverallScores(execution) {
+            const container = document.getElementById('overallScores');
+            container.innerHTML = '';
+            
+            const scores = [
+                { label: 'Overall Score', value: execution.overall_score || Math.round((execution.success_rate || 0) * 100), suffix: '' },
+                { label: 'Success Rate', value: Math.round((execution.success_rate || 0) * 100), suffix: '%' },
+                { label: 'Components', value: `${execution.successful_components || 0}/${execution.total_components || 0}`, suffix: '' },
+                { label: 'Duration', value: execution.total_duration_ms || 0, suffix: 'ms' },
+                { label: 'Total Cost', value: `$${((execution.total_cost_cents || 0) / 100).toFixed(4)}`, suffix: '' }
+            ];
+            
+            scores.forEach(score => {
+                const card = document.createElement('div');
+                card.className = 'score-card';
+                card.innerHTML = `
+                    <div class="score-value">${score.value}${score.suffix}</div>
+                    <div class="score-label">${score.label}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        // Display detailed metrics table
+        function displayDetailedMetrics(execution) {
+            const tbody = document.getElementById('metricsTableBody');
+            tbody.innerHTML = '';
+            
+            // Check if we have decomposed metrics (all 53 metrics)
+            if (execution.decomposed_metrics && Object.keys(execution.decomposed_metrics).length > 0) {
+                // Display all 53 decomposed metrics with proper categories
+                
+                // PAGESPEED METRICS (PRP-003) - 7 metrics
+                addMetricCategory(tbody, 'PageSpeed Performance (Core Web Vitals)');
+                addMetricRow(tbody, 'First Contentful Paint (FCP)', 
+                    formatTime(execution.decomposed_metrics['First Contentful Paint (FCP)']), 
+                    getTimeStatus(execution.decomposed_metrics['First Contentful Paint (FCP)'], 1800, 3000));
+                addMetricRow(tbody, 'Largest Contentful Paint (LCP)', 
+                    formatTime(execution.decomposed_metrics['Largest Contentful Paint (LCP)']),
+                    getTimeStatus(execution.decomposed_metrics['Largest Contentful Paint (LCP)'], 2500, 4000));
+                addMetricRow(tbody, 'Cumulative Layout Shift (CLS)', 
+                    execution.decomposed_metrics['Cumulative Layout Shift (CLS)']?.toFixed(3),
+                    getCLSStatus(execution.decomposed_metrics['Cumulative Layout Shift (CLS)']));
+                addMetricRow(tbody, 'Total Blocking Time (TBT)', 
+                    formatTime(execution.decomposed_metrics['Total Blocking Time (TBT)']),
+                    getTimeStatus(execution.decomposed_metrics['Total Blocking Time (TBT)'], 200, 600));
+                addMetricRow(tbody, 'Time to Interactive (TTI)', 
+                    formatTime(execution.decomposed_metrics['Time to Interactive (TTI)']),
+                    getTimeStatus(execution.decomposed_metrics['Time to Interactive (TTI)'], 3800, 7300));
+                addMetricRow(tbody, 'Speed Index', 
+                    formatTime(execution.decomposed_metrics['Speed Index']),
+                    getTimeStatus(execution.decomposed_metrics['Speed Index'], 3400, 5800));
+                addMetricRow(tbody, 'Performance Score (runtime)', 
+                    execution.decomposed_metrics['Performance Score (runtime)'],
+                    getScoreStatus(execution.decomposed_metrics['Performance Score (runtime)']));
+                
+                // TECHNICAL/SECURITY METRICS (PRP-004) - 9 metrics
+                addMetricCategory(tbody, 'Technical & Security Analysis');
+                addMetricRow(tbody, 'HTTPS enforced?', 
+                    execution.decomposed_metrics['HTTPS enforced?'] ? 'Yes' : 'No', 
+                    execution.decomposed_metrics['HTTPS enforced?'] ? 'good' : 'critical');
+                addMetricRow(tbody, 'TLS Version', 
+                    execution.decomposed_metrics['TLS Version'] || 'Unknown',
+                    execution.decomposed_metrics['TLS Version'] >= '1.2' ? 'good' : 'warning');
+                addMetricRow(tbody, 'HSTS Header present', 
+                    execution.decomposed_metrics['HSTS Header present'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['HSTS Header present'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'Content-Security-Policy header', 
+                    execution.decomposed_metrics['Content-Security-Policy header'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['Content-Security-Policy header'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'X-Frame-Options header', 
+                    execution.decomposed_metrics['X-Frame-Options header'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['X-Frame-Options header'] ? 'good' : 'neutral');
+                addMetricRow(tbody, 'robots.txt found', 
+                    execution.decomposed_metrics['robots.txt found'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['robots.txt found'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'sitemap.xml found', 
+                    execution.decomposed_metrics['sitemap.xml found'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['sitemap.xml found'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'Broken internal links (#)', 
+                    execution.decomposed_metrics['Broken internal links (#)'] || 0,
+                    execution.decomposed_metrics['Broken internal links (#)'] === 0 ? 'good' : 'warning');
+                addMetricRow(tbody, 'JS console errors (#)', 
+                    execution.decomposed_metrics['JS console errors (#)'] || 0,
+                    execution.decomposed_metrics['JS console errors (#)'] === 0 ? 'good' : 'warning');
+                
+                // GOOGLE BUSINESS PROFILE METRICS (PRP-005) - 9 metrics
+                addMetricCategory(tbody, 'Google Business Profile');
+                addMetricRow(tbody, 'Business Hours', 
+                    execution.decomposed_metrics['hours'] ? 'Available' : 'Not Available',
+                    execution.decomposed_metrics['hours'] ? 'good' : 'neutral');
+                addMetricRow(tbody, 'Review Count', 
+                    execution.decomposed_metrics['review_count'] || 0,
+                    execution.decomposed_metrics['review_count'] > 10 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Average Rating', 
+                    execution.decomposed_metrics['rating']?.toFixed(1) || 'N/A',
+                    getRatingStatus(execution.decomposed_metrics['rating']));
+                addMetricRow(tbody, 'Photos Count', 
+                    execution.decomposed_metrics['photos_count'] || 0,
+                    execution.decomposed_metrics['photos_count'] > 5 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Total Reviews', 
+                    execution.decomposed_metrics['total_reviews'] || 0,
+                    execution.decomposed_metrics['total_reviews'] > 10 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Average Rating (Lifetime)', 
+                    execution.decomposed_metrics['avg_rating']?.toFixed(1) || 'N/A',
+                    getRatingStatus(execution.decomposed_metrics['avg_rating']));
+                addMetricRow(tbody, 'Recent Reviews (90 days)', 
+                    execution.decomposed_metrics['recent_90d'] || 0,
+                    execution.decomposed_metrics['recent_90d'] > 3 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Rating Trend', 
+                    execution.decomposed_metrics['rating_trend'] || 'Unknown',
+                    execution.decomposed_metrics['rating_trend'] === 'improving' ? 'good' : 'neutral');
+                addMetricRow(tbody, 'Business Closed?', 
+                    execution.decomposed_metrics['is_closed'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['is_closed'] ? 'critical' : 'good');
+                
+                // SCREENSHOT/VISUAL METRICS (PRP-006) - 2 metrics
+                addMetricCategory(tbody, 'Screenshot & Visual Quality');
+                addMetricRow(tbody, 'Screenshots Captured', 
+                    execution.decomposed_metrics['Screenshots Captured'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['Screenshots Captured'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'Image Quality Assessment', 
+                    execution.decomposed_metrics['Image Quality Assessment'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Image Quality Assessment']));
+                
+                // SEMRUSH METRICS (PRP-007) - 6 metrics
+                addMetricCategory(tbody, 'SEO Analysis (SEMrush)');
+                addMetricRow(tbody, 'Site Health Score', 
+                    execution.decomposed_metrics['Site Health Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Site Health Score']));
+                addMetricRow(tbody, 'Backlink Toxicity Score', 
+                    execution.decomposed_metrics['Backlink Toxicity Score'] || 'N/A',
+                    execution.decomposed_metrics['Backlink Toxicity Score'] < 20 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Organic Traffic Est.', 
+                    formatNumber(execution.decomposed_metrics['Organic Traffic Est.'] || 0),
+                    execution.decomposed_metrics['Organic Traffic Est.'] > 1000 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Ranking Keywords (#)', 
+                    formatNumber(execution.decomposed_metrics['Ranking Keywords (#)'] || 0),
+                    execution.decomposed_metrics['Ranking Keywords (#)'] > 100 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Domain Authority Score', 
+                    execution.decomposed_metrics['Domain Authority Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Domain Authority Score']));
+                addMetricRow(tbody, 'Top Issue Categories', 
+                    Array.isArray(execution.decomposed_metrics['Top Issue Categories']) ? 
+                        execution.decomposed_metrics['Top Issue Categories'].join(', ') : 'None',
+                    'neutral');
+                
+                // LIGHTHOUSE/VISUAL ASSESSMENT METRICS (PRP-008) - 13 metrics
+                addMetricCategory(tbody, 'Visual & UX Assessment');
+                addMetricRow(tbody, 'Performance Score (headless)', 
+                    execution.decomposed_metrics['Performance Score (headless)'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Performance Score (headless)']));
+                addMetricRow(tbody, 'Accessibility Score', 
+                    execution.decomposed_metrics['Accessibility Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Accessibility Score']));
+                addMetricRow(tbody, 'Best-Practices Score', 
+                    execution.decomposed_metrics['Best-Practices Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Best-Practices Score']));
+                addMetricRow(tbody, 'SEO Score', 
+                    execution.decomposed_metrics['SEO Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['SEO Score']));
+                addMetricRow(tbody, 'Above-the-fold clarity', 
+                    execution.decomposed_metrics['Visual rubric #1 – Above-the-fold clarity'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #1 – Above-the-fold clarity']));
+                addMetricRow(tbody, 'Primary CTA prominence', 
+                    execution.decomposed_metrics['Visual rubric #2 – Primary CTA prominence'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #2 – Primary CTA prominence']));
+                addMetricRow(tbody, 'Trust signals present', 
+                    execution.decomposed_metrics['Visual rubric #3 – Trust signals present'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #3 – Trust signals present']));
+                addMetricRow(tbody, 'Visual hierarchy / contrast', 
+                    execution.decomposed_metrics['Visual rubric #4 – Visual hierarchy / contrast'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #4 – Visual hierarchy / contrast']));
+                addMetricRow(tbody, 'Text readability', 
+                    execution.decomposed_metrics['Visual rubric #5 – Text readability'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #5 – Text readability']));
+                addMetricRow(tbody, 'Brand colour cohesion', 
+                    execution.decomposed_metrics['Visual rubric #6 – Brand colour cohesion'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #6 – Brand colour cohesion']));
+                addMetricRow(tbody, 'Image quality', 
+                    execution.decomposed_metrics['Visual rubric #7 – Image quality'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #7 – Image quality']));
+                addMetricRow(tbody, 'Mobile responsiveness', 
+                    execution.decomposed_metrics['Visual rubric #8 – Mobile responsiveness hint'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #8 – Mobile responsiveness hint']));
+                addMetricRow(tbody, 'Clutter / white-space balance', 
+                    execution.decomposed_metrics['Visual rubric #9 – Clutter / white-space balance'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #9 – Clutter / white-space balance']));
+                
+                // LLM CONTENT GENERATOR METRICS (PRP-010) - 7 metrics
+                addMetricCategory(tbody, 'Content Quality Assessment');
+                addMetricRow(tbody, 'Unique Value Prop clarity', 
+                    execution.decomposed_metrics['Unique Value Prop clarity'] || 'N/A',
+                    getContentScoreStatus(execution.decomposed_metrics['Unique Value Prop clarity']));
+                addMetricRow(tbody, 'Contact Info presence', 
+                    execution.decomposed_metrics['Contact Info presence'] || 'N/A',
+                    getContentScoreStatus(execution.decomposed_metrics['Contact Info presence']));
+                addMetricRow(tbody, 'Next-Step clarity (CTA)', 
+                    execution.decomposed_metrics['Next-Step clarity (CTA)'] || 'N/A',
+                    getContentScoreStatus(execution.decomposed_metrics['Next-Step clarity (CTA)']));
+                addMetricRow(tbody, 'Social-Proof presence', 
+                    execution.decomposed_metrics['Social-Proof presence'] || 'N/A',
+                    getContentScoreStatus(execution.decomposed_metrics['Social-Proof presence']));
+                addMetricRow(tbody, 'Content Quality Score', 
+                    execution.decomposed_metrics['Content Quality Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Content Quality Score']));
+                addMetricRow(tbody, 'Brand Voice Consistency', 
+                    execution.decomposed_metrics['Brand Voice Consistency'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Brand Voice Consistency']));
+                addMetricRow(tbody, 'Spam Score Assessment', 
+                    execution.decomposed_metrics['Spam Score Assessment'] || 'N/A',
+                    execution.decomposed_metrics['Spam Score Assessment'] < 30 ? 'good' : 'warning');
+                
+                return; // Don't show old format if we have decomposed metrics
+            }
+            
+            // Fallback to old format if decomposed metrics not available
+            // PageSpeed Metrics
+            if (execution.pagespeed_result?.data) {
+                addMetricCategory(tbody, 'PageSpeed Performance');
+                const data = execution.pagespeed_result.data;
+                
+                addMetricRow(tbody, 'Desktop Score', data.desktop_score, getScoreStatus(data.desktop_score));
+                addMetricRow(tbody, 'Mobile Score', data.mobile_score, getScoreStatus(data.mobile_score));
+                
+                if (data.desktop_metrics) {
+                    addMetricRow(tbody, 'First Contentful Paint', formatTime(data.desktop_metrics.first_contentful_paint_ms), 
+                        getTimeStatus(data.desktop_metrics.first_contentful_paint_ms, 1800, 3000));
+                    addMetricRow(tbody, 'Largest Contentful Paint', formatTime(data.desktop_metrics.largest_contentful_paint_ms),
+                        getTimeStatus(data.desktop_metrics.largest_contentful_paint_ms, 2500, 4000));
+                    addMetricRow(tbody, 'Cumulative Layout Shift', data.desktop_metrics.cumulative_layout_shift?.toFixed(3),
+                        getCLSStatus(data.desktop_metrics.cumulative_layout_shift));
+                    addMetricRow(tbody, 'Total Blocking Time', formatTime(data.desktop_metrics.total_blocking_time_ms),
+                        getTimeStatus(data.desktop_metrics.total_blocking_time_ms, 200, 600));
+                    addMetricRow(tbody, 'Time to Interactive', formatTime(data.desktop_metrics.time_to_interactive_ms),
+                        getTimeStatus(data.desktop_metrics.time_to_interactive_ms, 3800, 7300));
+                }
+            }
+            
+            // Security Metrics
+            if (execution.security_result?.data) {
+                addMetricCategory(tbody, 'Security Analysis');
+                const data = execution.security_result.data;
+                
+                addMetricRow(tbody, 'SSL Valid', data.ssl_valid ? 'Yes' : 'No', data.ssl_valid ? 'good' : 'critical');
+                addMetricRow(tbody, 'HTTPS Enforced', data.https_redirect ? 'Yes' : 'No', data.https_redirect ? 'good' : 'warning');
+                addMetricRow(tbody, 'Security Headers Score', `${data.security_headers_score || 0}/100`, 
+                    getScoreStatus(data.security_headers_score));
+                
+                if (data.headers_present) {
+                    addMetricRow(tbody, 'HSTS Header', data.headers_present.hsts ? 'Present' : 'Missing',
+                        data.headers_present.hsts ? 'good' : 'warning');
+                    addMetricRow(tbody, 'CSP Header', data.headers_present.csp ? 'Present' : 'Missing',
+                        data.headers_present.csp ? 'good' : 'warning');
+                    addMetricRow(tbody, 'X-Frame-Options', data.headers_present.x_frame_options ? 'Present' : 'Missing',
+                        data.headers_present.x_frame_options ? 'good' : 'neutral');
+                }
+            }
+            
+            // Google Business Profile
+            if (execution.gbp_result?.data) {
+                addMetricCategory(tbody, 'Google Business Profile');
+                const data = execution.gbp_result.data;
+                
+                addMetricRow(tbody, 'Business Found', data.place_found ? 'Yes' : 'No', 
+                    data.place_found ? 'good' : 'warning');
+                    
+                if (data.place_found) {
+                    addMetricRow(tbody, 'Average Rating', data.rating?.toFixed(1) || 'N/A',
+                        getRatingStatus(data.rating));
+                    addMetricRow(tbody, 'Total Reviews', data.user_ratings_total || 0,
+                        data.user_ratings_total > 10 ? 'good' : 'warning');
+                    addMetricRow(tbody, 'Business Status', data.business_status || 'Unknown',
+                        data.business_status === 'OPERATIONAL' ? 'good' : 'warning');
+                }
+            }
+            
+            // SEMrush SEO Metrics
+            if (execution.semrush_result?.data) {
+                addMetricCategory(tbody, 'SEO Analysis (SEMrush)');
+                const data = execution.semrush_result.data;
+                
+                if (data.domain_info) {
+                    addMetricRow(tbody, 'Domain Authority', data.domain_info.domain_score || 'N/A',
+                        getScoreStatus(data.domain_info.domain_score));
+                    addMetricRow(tbody, 'Organic Traffic', formatNumber(data.domain_info.organic?.traffic || 0),
+                        data.domain_info.organic?.traffic > 1000 ? 'good' : 'warning');
+                    addMetricRow(tbody, 'Keywords Ranking', formatNumber(data.domain_info.organic?.keywords || 0),
+                        data.domain_info.organic?.keywords > 100 ? 'good' : 'warning');
+                }
+                
+                if (data.backlinks_info) {
+                    addMetricRow(tbody, 'Total Backlinks', formatNumber(data.backlinks_info.total || 0),
+                        data.backlinks_info.total > 100 ? 'good' : 'warning');
+                    addMetricRow(tbody, 'Referring Domains', formatNumber(data.backlinks_info.domains || 0),
+                        data.backlinks_info.domains > 50 ? 'good' : 'warning');
+                }
+            }
+        }
+        
+        // Display visual scores
+        function displayVisualScores(visualResult) {
+            if (!visualResult?.data?.scores) return;
+            
+            const section = document.getElementById('visualScoresSection');
+            const container = document.getElementById('visualScores');
+            
+            section.style.display = 'block';
+            container.innerHTML = '';
+            
+            visualResult.data.scores.forEach((score, index) => {
+                const item = document.createElement('div');
+                item.className = 'visual-score-item';
+                item.innerHTML = `
+                    <div class="visual-score-value ${getVisualScoreClass(score)}">${score}/9</div>
+                    <div class="visual-score-label">${VISUAL_RUBRIC_LABELS[index] || `Rubric ${index + 1}`}</div>
+                `;
+                container.appendChild(item);
+            });
+        }
+        
+        // Display errors
+        function displayErrors(execution) {
+            const errors = [];
+            
+            // Collect errors from all components
+            Object.entries(execution).forEach(([key, value]) => {
+                if (key.endsWith('_result') && value?.status?.value === 'failed') {
+                    errors.push({
+                        component: key.replace('_result', ''),
+                        error: value.error || 'Unknown error',
+                        details: value.error_details || null
+                    });
+                }
+            });
+            
+            if (errors.length === 0) {
+                document.getElementById('errorsSection').style.display = 'none';
+                return;
+            }
+            
+            const section = document.getElementById('errorsSection');
+            const container = document.getElementById('errorsList');
+            
+            section.style.display = 'block';
+            container.innerHTML = '';
+            
+            errors.forEach(error => {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-container';
+                errorDiv.innerHTML = `
+                    <div class="error-title">${ASSESSMENT_COMPONENTS[error.component]?.name || error.component}</div>
+                    <div>${error.error}</div>
+                    ${error.details ? `<pre class="error-stack">${error.details}</pre>` : ''}
+                `;
+                container.appendChild(errorDiv);
+            });
+        }
+        
+        // Helper functions
+        function addMetricCategory(tbody, title) {
+            const row = tbody.insertRow();
+            row.innerHTML = `<td colspan="4" class="metric-category">${title}</td>`;
+        }
+        
+        function addMetricRow(tbody, name, value, status, notes = '') {
+            const row = tbody.insertRow();
+            row.innerHTML = `
+                <td class="metric-name">${name}</td>
+                <td class="metric-value metric-${status}">${value || 'N/A'}</td>
+                <td><span class="status-indicator status-${status}">${status}</span></td>
+                <td class="text-muted">${notes}</td>
+            `;
+        }
+        
+        function getScoreStatus(score) {
+            if (score >= 90) return 'good';
+            if (score >= 50) return 'warning';
+            return 'critical';
+        }
+        
+        function getTimeStatus(ms, goodThreshold, poorThreshold) {
+            if (ms <= goodThreshold) return 'good';
+            if (ms <= poorThreshold) return 'warning';
+            return 'critical';
+        }
+        
+        function getCLSStatus(cls) {
+            if (cls <= 0.1) return 'good';
+            if (cls <= 0.25) return 'warning';
+            return 'critical';
+        }
+        
+        function getRatingStatus(rating) {
+            if (rating >= 4.5) return 'good';
+            if (rating >= 3.5) return 'warning';
+            return 'critical';
+        }
+        
+        function getVisualRubricStatus(score) {
+            // Visual rubric scores are on a 1-9 scale
+            if (score >= 7) return 'good';
+            if (score >= 5) return 'warning';
+            return 'critical';
+        }
+        
+        function getContentScoreStatus(score) {
+            // Content quality scores are typically on a 0-10 scale
+            if (score >= 8) return 'good';
+            if (score >= 5) return 'warning';
+            return 'critical';
+        }
+        
+        function getVisualScoreClass(score) {
+            if (score >= 7) return 'metric-good';
+            if (score >= 5) return 'metric-warning';
+            return 'metric-critical';
+        }
+        
+        function formatTime(ms) {
+            if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+            return `${Math.round(ms)}ms`;
+        }
+        
+        function formatNumber(num) {
+            return num.toLocaleString();
+        }
+        
+        function setLoading(isLoading) {
+            const btn = document.getElementById('analyzeBtn');
+            const btnText = btn.querySelector('.btn-text');
+            const loading = btn.querySelector('.loading');
+            
+            if (isLoading) {
+                btnText.style.display = 'none';
+                loading.classList.add('show');
+                btn.disabled = true;
+            } else {
+                btnText.style.display = 'inline';
+                loading.classList.remove('show');
+                btn.disabled = false;
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('signOutBtn').addEventListener('click', signOut);
+        
+        document.getElementById('assessmentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = document.getElementById('websiteUrl').value.trim();
+            const businessName = document.getElementById('businessName').value.trim();
+            
+            if (!url) {
+                showAlert('error', 'Please enter a valid URL');
+                return;
+            }
+            
+            // Validate URL format
+            try {
+                new URL(url);
+            } catch {
+                showAlert('error', 'Please enter a valid URL (including https://)');
+                return;
+            }
+            
+            if (!accessToken) {
+                showAlert('error', 'Please sign in first');
+                return;
+            }
+            
+            clearAlerts();
+            setLoading(true);
+            
+            try {
+                showAlert('info', 'Starting comprehensive website analysis...');
+                
+                // Execute assessment
+                const assessmentResponse = await executeAssessment(url, businessName);
+                currentTaskId = assessmentResponse.task_id;
+                
+                showAlert('info', `Assessment started (Task ID: ${currentTaskId})`);
+                
+                // Monitor progress
+                await monitorAssessment(currentTaskId, url);
+                
+            } catch (error) {
+                console.error('Assessment failed:', error);
+                setLoading(false);
+                showAlert('error', error.message || 'Assessment failed. Please try again.');
+            }
+        });
+        
+        // Auto-format URL
+        document.getElementById('websiteUrl').addEventListener('blur', (e) => {
+            let url = e.target.value.trim();
+            if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+                e.target.value = 'https://' + url;
+            }
+        });
+        
+        // Make handleGoogleAuth globally available
+        window.handleGoogleAuth = handleGoogleAuth;
+        
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+
+</body></html>

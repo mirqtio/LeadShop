@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verify No Browser Override</title>
+</head>
+<body>
+    <h1>Check for Browser Overrides</h1>
+    
+    <h2>Instructions:</h2>
+    <ol>
+        <li>Open Chrome DevTools (F12 or Cmd+Option+I)</li>
+        <li>Go to the "Sources" tab</li>
+        <li>Look for "Overrides" in the left panel</li>
+        <li>Check if there are any local overrides for localhost:8001</li>
+    </ol>
+    
+    <h2>Also check:</h2>
+    <ul>
+        <li>Network tab → Disable cache checkbox</li>
+        <li>Application tab → Clear site data</li>
+        <li>Check for any browser extensions that might intercept requests</li>
+    </ul>
+    
+    <h2>Direct Test:</h2>
+    <button onclick="testFetch()">Test Fetch API</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function testFetch() {
+            const result = document.getElementById('result');
+            try {
+                const response = await fetch('http://localhost:8001/api/v1/simple-assessment/', {
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
+                    }
+                });
+                const text = await response.text();
+                const firstLine = text.split('\n')[0];
+                const hasTimestamp = text.includes('Generated at');
+                const hasDecomposed = text.includes('Decomposed Metrics');
+                const hasScripts = text.includes('Scripts section');
+                
+                result.textContent = 
+                    `Status: ${response.status}\n` +
+                    `Headers: ${JSON.stringify(Object.fromEntries(response.headers))}\n` +
+                    `First line: ${firstLine}\n` +
+                    `Has timestamp comment: ${hasTimestamp}\n` +
+                    `Has Decomposed Metrics: ${hasDecomposed}\n` +
+                    `Has Scripts section: ${hasScripts}\n` +
+                    `Content length: ${text.length}`;
+            } catch (e) {
+                result.textContent = `Error: ${e.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

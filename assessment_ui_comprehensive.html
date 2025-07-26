@@ -848,7 +848,7 @@
                 throw new Error('Not authenticated');
             }
             
-            const response = await fetch(CONFIG.execute_endpoint, {
+            const response = await fetch(CONFIG.assessment_endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1029,6 +1029,195 @@
             const tbody = document.getElementById('metricsTableBody');
             tbody.innerHTML = '';
             
+            // Check if we have decomposed metrics (all 53 metrics)
+            if (execution.decomposed_metrics && Object.keys(execution.decomposed_metrics).length > 0) {
+                // Display all 53 decomposed metrics with proper categories
+                
+                // PAGESPEED METRICS (PRP-003) - 7 metrics
+                addMetricCategory(tbody, 'PageSpeed Performance (Core Web Vitals)');
+                addMetricRow(tbody, 'First Contentful Paint (FCP)', 
+                    formatTime(execution.decomposed_metrics['First Contentful Paint (FCP)']), 
+                    getTimeStatus(execution.decomposed_metrics['First Contentful Paint (FCP)'], 1800, 3000));
+                addMetricRow(tbody, 'Largest Contentful Paint (LCP)', 
+                    formatTime(execution.decomposed_metrics['Largest Contentful Paint (LCP)']),
+                    getTimeStatus(execution.decomposed_metrics['Largest Contentful Paint (LCP)'], 2500, 4000));
+                addMetricRow(tbody, 'Cumulative Layout Shift (CLS)', 
+                    execution.decomposed_metrics['Cumulative Layout Shift (CLS)']?.toFixed(3),
+                    getCLSStatus(execution.decomposed_metrics['Cumulative Layout Shift (CLS)']));
+                addMetricRow(tbody, 'Total Blocking Time (TBT)', 
+                    formatTime(execution.decomposed_metrics['Total Blocking Time (TBT)']),
+                    getTimeStatus(execution.decomposed_metrics['Total Blocking Time (TBT)'], 200, 600));
+                addMetricRow(tbody, 'Time to Interactive (TTI)', 
+                    formatTime(execution.decomposed_metrics['Time to Interactive (TTI)']),
+                    getTimeStatus(execution.decomposed_metrics['Time to Interactive (TTI)'], 3800, 7300));
+                addMetricRow(tbody, 'Speed Index', 
+                    formatTime(execution.decomposed_metrics['Speed Index']),
+                    getTimeStatus(execution.decomposed_metrics['Speed Index'], 3400, 5800));
+                addMetricRow(tbody, 'Performance Score (runtime)', 
+                    execution.decomposed_metrics['Performance Score (runtime)'],
+                    getScoreStatus(execution.decomposed_metrics['Performance Score (runtime)']));
+                
+                // TECHNICAL/SECURITY METRICS (PRP-004) - 9 metrics
+                addMetricCategory(tbody, 'Technical & Security Analysis');
+                addMetricRow(tbody, 'HTTPS enforced?', 
+                    execution.decomposed_metrics['HTTPS enforced?'] ? 'Yes' : 'No', 
+                    execution.decomposed_metrics['HTTPS enforced?'] ? 'good' : 'critical');
+                addMetricRow(tbody, 'TLS Version', 
+                    execution.decomposed_metrics['TLS Version'] || 'Unknown',
+                    execution.decomposed_metrics['TLS Version'] >= '1.2' ? 'good' : 'warning');
+                addMetricRow(tbody, 'HSTS Header present', 
+                    execution.decomposed_metrics['HSTS Header present'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['HSTS Header present'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'Content-Security-Policy header', 
+                    execution.decomposed_metrics['Content-Security-Policy header'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['Content-Security-Policy header'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'X-Frame-Options header', 
+                    execution.decomposed_metrics['X-Frame-Options header'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['X-Frame-Options header'] ? 'good' : 'neutral');
+                addMetricRow(tbody, 'robots.txt found', 
+                    execution.decomposed_metrics['robots.txt found'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['robots.txt found'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'sitemap.xml found', 
+                    execution.decomposed_metrics['sitemap.xml found'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['sitemap.xml found'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'Broken internal links (#)', 
+                    execution.decomposed_metrics['Broken internal links (#)'] || 0,
+                    execution.decomposed_metrics['Broken internal links (#)'] === 0 ? 'good' : 'warning');
+                addMetricRow(tbody, 'JS console errors (#)', 
+                    execution.decomposed_metrics['JS console errors (#)'] || 0,
+                    execution.decomposed_metrics['JS console errors (#)'] === 0 ? 'good' : 'warning');
+                
+                // GOOGLE BUSINESS PROFILE METRICS (PRP-005) - 9 metrics
+                addMetricCategory(tbody, 'Google Business Profile');
+                addMetricRow(tbody, 'Business Hours', 
+                    execution.decomposed_metrics['hours'] ? 'Available' : 'Not Available',
+                    execution.decomposed_metrics['hours'] ? 'good' : 'neutral');
+                addMetricRow(tbody, 'Review Count', 
+                    execution.decomposed_metrics['review_count'] || 0,
+                    execution.decomposed_metrics['review_count'] > 10 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Average Rating', 
+                    execution.decomposed_metrics['rating']?.toFixed(1) || 'N/A',
+                    getRatingStatus(execution.decomposed_metrics['rating']));
+                addMetricRow(tbody, 'Photos Count', 
+                    execution.decomposed_metrics['photos_count'] || 0,
+                    execution.decomposed_metrics['photos_count'] > 5 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Total Reviews', 
+                    execution.decomposed_metrics['total_reviews'] || 0,
+                    execution.decomposed_metrics['total_reviews'] > 10 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Average Rating (Lifetime)', 
+                    execution.decomposed_metrics['avg_rating']?.toFixed(1) || 'N/A',
+                    getRatingStatus(execution.decomposed_metrics['avg_rating']));
+                addMetricRow(tbody, 'Recent Reviews (90 days)', 
+                    execution.decomposed_metrics['recent_90d'] || 0,
+                    execution.decomposed_metrics['recent_90d'] > 3 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Rating Trend', 
+                    execution.decomposed_metrics['rating_trend'] || 'Unknown',
+                    execution.decomposed_metrics['rating_trend'] === 'improving' ? 'good' : 'neutral');
+                addMetricRow(tbody, 'Business Closed?', 
+                    execution.decomposed_metrics['is_closed'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['is_closed'] ? 'critical' : 'good');
+                
+                // SCREENSHOT/VISUAL METRICS (PRP-006) - 2 metrics
+                addMetricCategory(tbody, 'Screenshot & Visual Quality');
+                addMetricRow(tbody, 'Screenshots Captured', 
+                    execution.decomposed_metrics['Screenshots Captured'] ? 'Yes' : 'No',
+                    execution.decomposed_metrics['Screenshots Captured'] ? 'good' : 'warning');
+                addMetricRow(tbody, 'Image Quality Assessment', 
+                    execution.decomposed_metrics['Image Quality Assessment'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Image Quality Assessment']));
+                
+                // SEMRUSH METRICS (PRP-007) - 6 metrics
+                addMetricCategory(tbody, 'SEO Analysis (SEMrush)');
+                addMetricRow(tbody, 'Site Health Score', 
+                    execution.decomposed_metrics['Site Health Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Site Health Score']));
+                addMetricRow(tbody, 'Backlink Toxicity Score', 
+                    execution.decomposed_metrics['Backlink Toxicity Score'] || 'N/A',
+                    execution.decomposed_metrics['Backlink Toxicity Score'] < 20 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Organic Traffic Est.', 
+                    formatNumber(execution.decomposed_metrics['Organic Traffic Est.'] || 0),
+                    execution.decomposed_metrics['Organic Traffic Est.'] > 1000 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Ranking Keywords (#)', 
+                    formatNumber(execution.decomposed_metrics['Ranking Keywords (#)'] || 0),
+                    execution.decomposed_metrics['Ranking Keywords (#)'] > 100 ? 'good' : 'warning');
+                addMetricRow(tbody, 'Domain Authority Score', 
+                    execution.decomposed_metrics['Domain Authority Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Domain Authority Score']));
+                addMetricRow(tbody, 'Top Issue Categories', 
+                    Array.isArray(execution.decomposed_metrics['Top Issue Categories']) ? 
+                        execution.decomposed_metrics['Top Issue Categories'].join(', ') : 'None',
+                    'neutral');
+                
+                // LIGHTHOUSE/VISUAL ASSESSMENT METRICS (PRP-008) - 13 metrics
+                addMetricCategory(tbody, 'Visual & UX Assessment');
+                addMetricRow(tbody, 'Performance Score (headless)', 
+                    execution.decomposed_metrics['Performance Score (headless)'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Performance Score (headless)']));
+                addMetricRow(tbody, 'Accessibility Score', 
+                    execution.decomposed_metrics['Accessibility Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Accessibility Score']));
+                addMetricRow(tbody, 'Best-Practices Score', 
+                    execution.decomposed_metrics['Best-Practices Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Best-Practices Score']));
+                addMetricRow(tbody, 'SEO Score', 
+                    execution.decomposed_metrics['SEO Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['SEO Score']));
+                addMetricRow(tbody, 'Above-the-fold clarity', 
+                    execution.decomposed_metrics['Visual rubric #1 – Above-the-fold clarity'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #1 – Above-the-fold clarity']));
+                addMetricRow(tbody, 'Primary CTA prominence', 
+                    execution.decomposed_metrics['Visual rubric #2 – Primary CTA prominence'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #2 – Primary CTA prominence']));
+                addMetricRow(tbody, 'Trust signals present', 
+                    execution.decomposed_metrics['Visual rubric #3 – Trust signals present'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #3 – Trust signals present']));
+                addMetricRow(tbody, 'Visual hierarchy / contrast', 
+                    execution.decomposed_metrics['Visual rubric #4 – Visual hierarchy / contrast'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #4 – Visual hierarchy / contrast']));
+                addMetricRow(tbody, 'Text readability', 
+                    execution.decomposed_metrics['Visual rubric #5 – Text readability'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #5 – Text readability']));
+                addMetricRow(tbody, 'Brand colour cohesion', 
+                    execution.decomposed_metrics['Visual rubric #6 – Brand colour cohesion'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #6 – Brand colour cohesion']));
+                addMetricRow(tbody, 'Image quality', 
+                    execution.decomposed_metrics['Visual rubric #7 – Image quality'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #7 – Image quality']));
+                addMetricRow(tbody, 'Mobile responsiveness', 
+                    execution.decomposed_metrics['Visual rubric #8 – Mobile responsiveness hint'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #8 – Mobile responsiveness hint']));
+                addMetricRow(tbody, 'Clutter / white-space balance', 
+                    execution.decomposed_metrics['Visual rubric #9 – Clutter / white-space balance'] || 'N/A',
+                    getVisualRubricStatus(execution.decomposed_metrics['Visual rubric #9 – Clutter / white-space balance']));
+                
+                // LLM CONTENT GENERATOR METRICS (PRP-010) - 7 metrics
+                addMetricCategory(tbody, 'Content Quality Assessment');
+                addMetricRow(tbody, 'Unique Value Prop clarity', 
+                    execution.decomposed_metrics['Unique Value Prop clarity'] || 'N/A',
+                    getContentScoreStatus(execution.decomposed_metrics['Unique Value Prop clarity']));
+                addMetricRow(tbody, 'Contact Info presence', 
+                    execution.decomposed_metrics['Contact Info presence'] || 'N/A',
+                    getContentScoreStatus(execution.decomposed_metrics['Contact Info presence']));
+                addMetricRow(tbody, 'Next-Step clarity (CTA)', 
+                    execution.decomposed_metrics['Next-Step clarity (CTA)'] || 'N/A',
+                    getContentScoreStatus(execution.decomposed_metrics['Next-Step clarity (CTA)']));
+                addMetricRow(tbody, 'Social-Proof presence', 
+                    execution.decomposed_metrics['Social-Proof presence'] || 'N/A',
+                    getContentScoreStatus(execution.decomposed_metrics['Social-Proof presence']));
+                addMetricRow(tbody, 'Content Quality Score', 
+                    execution.decomposed_metrics['Content Quality Score'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Content Quality Score']));
+                addMetricRow(tbody, 'Brand Voice Consistency', 
+                    execution.decomposed_metrics['Brand Voice Consistency'] || 'N/A',
+                    getScoreStatus(execution.decomposed_metrics['Brand Voice Consistency']));
+                addMetricRow(tbody, 'Spam Score Assessment', 
+                    execution.decomposed_metrics['Spam Score Assessment'] || 'N/A',
+                    execution.decomposed_metrics['Spam Score Assessment'] < 30 ? 'good' : 'warning');
+                
+                return; // Don't show old format if we have decomposed metrics
+            }
+            
+            // Fallback to old format if decomposed metrics not available
             // PageSpeed Metrics
             if (execution.pagespeed_result?.data) {
                 addMetricCategory(tbody, 'PageSpeed Performance');
@@ -1208,6 +1397,20 @@
         function getRatingStatus(rating) {
             if (rating >= 4.5) return 'good';
             if (rating >= 3.5) return 'warning';
+            return 'critical';
+        }
+        
+        function getVisualRubricStatus(score) {
+            // Visual rubric scores are on a 1-9 scale
+            if (score >= 7) return 'good';
+            if (score >= 5) return 'warning';
+            return 'critical';
+        }
+        
+        function getContentScoreStatus(score) {
+            // Content quality scores are typically on a 0-10 scale
+            if (score >= 8) return 'good';
+            if (score >= 5) return 'warning';
             return 'critical';
         }
         
