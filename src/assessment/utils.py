@@ -208,10 +208,22 @@ async def update_assessment_status(
             if error_message:
                 update_data["error_message"] = error_message
             
-            # Update assessment via Lead relationship
+            # Update assessment via Lead relationship - get the most recent one
+            assessment_query = (
+                select(Assessment)
+                .where(Assessment.lead_id == lead_id)
+                .order_by(Assessment.created_at.desc())
+                .limit(1)
+            )
+            assessment_result = await session.execute(assessment_query)
+            assessment = assessment_result.scalar_one_or_none()
+            
+            if not assessment:
+                raise AssessmentError(f"Assessment for lead {lead_id} not found")
+            
             update_query = (
                 update(Assessment)
-                .where(Assessment.lead_id == lead_id)
+                .where(Assessment.id == assessment.id)
                 .values(**update_data)
             )
             
@@ -240,10 +252,12 @@ def sync_update_assessment_field(
         from sqlalchemy import select, update
         
         with SyncSessionLocal() as session:
-            # Get current assessment
+            # Get current assessment - get the most recent one if multiple exist
             assessment_query = (
                 select(Assessment)
                 .where(Assessment.lead_id == lead_id)
+                .order_by(Assessment.created_at.desc())
+                .limit(1)
             )
             result = session.execute(assessment_query)
             assessment = result.scalar_one_or_none()
@@ -258,10 +272,10 @@ def sync_update_assessment_field(
                     current_data.update(field_value)
                     field_value = current_data
             
-            # Update the field
+            # Update the field - use specific assessment ID to avoid conflicts
             update_query = (
                 update(Assessment)
-                .where(Assessment.lead_id == lead_id)
+                .where(Assessment.id == assessment.id)
                 .values({
                     field_name: field_value,
                     "updated_at": datetime.now(timezone.utc)
@@ -302,10 +316,12 @@ async def update_assessment_field(
     try:
         from src.core.database import AsyncSessionLocal
         async with AsyncSessionLocal() as session:
-            # Get current assessment
+            # Get current assessment - get the most recent one if multiple exist
             assessment_query = (
                 select(Assessment)
                 .where(Assessment.lead_id == lead_id)
+                .order_by(Assessment.created_at.desc())
+                .limit(1)
             )
             result = await session.execute(assessment_query)
             assessment = result.scalar_one_or_none()
@@ -320,10 +336,10 @@ async def update_assessment_field(
                     current_data.update(field_value)
                     field_value = current_data
             
-            # Update the field
+            # Update the field - use specific assessment ID to avoid conflicts
             update_query = (
                 update(Assessment)
-                .where(Assessment.lead_id == lead_id)
+                .where(Assessment.id == assessment.id)
                 .values({
                     field_name: field_value,
                     "updated_at": datetime.now(timezone.utc)
@@ -371,10 +387,22 @@ def sync_update_assessment_status(
             if error_message:
                 update_data["error_message"] = error_message
             
-            # Update assessment via Lead relationship
+            # Update assessment via Lead relationship - get the most recent one
+            assessment_query = (
+                select(Assessment)
+                .where(Assessment.lead_id == lead_id)
+                .order_by(Assessment.created_at.desc())
+                .limit(1)
+            )
+            assessment_result = session.execute(assessment_query)
+            assessment = assessment_result.scalar_one_or_none()
+            
+            if not assessment:
+                raise AssessmentError(f"Assessment for lead {lead_id} not found")
+            
             update_query = (
                 update(Assessment)
-                .where(Assessment.lead_id == lead_id)
+                .where(Assessment.id == assessment.id)
                 .values(**update_data)
             )
             
@@ -613,10 +641,30 @@ def prepare_assessment_data_for_storage(data: Dict[str, Any]) -> Dict[str, Any]:
             cleaned_data[key] = prepare_assessment_data_for_storage(value)
         elif isinstance(value, list):
             # Handle lists that might contain non-serializable objects
-            cleaned_data[key] = [
-                serialize_assessment_cost(item) if hasattr(item, '__tablename__') else item
-                for item in value
-            ]
+            cleaned_list = []
+            for item in value:
+                if hasattr(item, '__tablename__'):
+                    # SQLAlchemy model
+                    cleaned_list.append(serialize_assessment_cost(item))
+                elif hasattr(item, 'dict') and callable(getattr(item, 'dict')):
+                    # Pydantic model with dict() method
+                    cleaned_list.append(item.dict())
+                elif hasattr(item, '__dict__') and not isinstance(item, (str, int, float, bool, type(None))):
+                    # Object with __dict__ attribute (like dataclasses)
+                    cleaned_list.append(item.__dict__)
+                elif isinstance(item, dict):
+                    # Nested dictionary
+                    cleaned_list.append(prepare_assessment_data_for_storage(item))
+                else:
+                    # Primitive types or already serializable
+                    cleaned_list.append(item)
+            cleaned_data[key] = cleaned_list
+        elif hasattr(value, 'dict') and callable(getattr(value, 'dict')):
+            # Pydantic model with dict() method
+            cleaned_data[key] = value.dict()
+        elif hasattr(value, '__dict__') and not isinstance(value, (str, int, float, bool, type(None))):
+            # Object with __dict__ attribute (like dataclasses)
+            cleaned_data[key] = value.__dict__
         else:
             cleaned_data[key] = value
     

@@ -133,6 +133,21 @@ class Assessment(Base):
     
     # Relationships
     lead: Mapped["Lead"] = relationship("Lead", back_populates="assessments")
+    result: Mapped["AssessmentResults"] = relationship(
+        "AssessmentResults", 
+        back_populates="assessment",
+        uselist=False  # One-to-one relationship
+    )
+    security_analysis: Mapped["SecurityAnalysis"] = relationship(
+        "SecurityAnalysis",
+        back_populates="assessment",
+        uselist=False  # One-to-one relationship
+    )
+    gbp_analysis: Mapped["GBPAnalysis"] = relationship(
+        "GBPAnalysis",
+        back_populates="assessment",
+        uselist=False  # One-to-one relationship
+    )
     
     def __repr__(self) -> str:
         return f"<Assessment(id={self.id}, lead_id={self.lead_id}, status='{self.status}')>"

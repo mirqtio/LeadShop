@@ -76,13 +76,18 @@ def pagespeed_task(self, lead_id: int) -> Dict[str, Any]:
         if not url:
             raise AssessmentError(f"Lead {lead_id} has no URL for PageSpeed analysis")
         
+        # Get or create assessment record to get assessment_id
+        from src.assessment.orchestrator import sync_get_or_create_assessment
+        assessment = sync_get_or_create_assessment(lead_id)
+        assessment_id = assessment.id
+        
         # PRP-003: Use actual PageSpeed API client
         from src.assessments.pagespeed import assess_pagespeed, PageSpeedError
         
         try:
             # Execute PageSpeed assessment with mobile-first strategy and cost tracking
             # Use utility function for proper async handling in Celery worker context
-            pagespeed_results = run_async_in_celery(assess_pagespeed, url, company, lead_id)
+            pagespeed_results = run_async_in_celery(assess_pagespeed, url, company, lead_id, assessment_id)
             
             # Extract performance score from Core Web Vitals nested structure
             core_web_vitals = pagespeed_results.get("core_web_vitals", {})
@@ -1782,6 +1787,7 @@ def full_assessment_orchestrator_task(self, lead_id: Optional[int] = None, lead_
                     select(Assessment)
                     .where(Assessment.lead_id == lead_id)
                     .order_by(Assessment.created_at.desc())
+                    .limit(1)
                 )
                 existing = result.scalar_one_or_none()
                 
@@ -1899,6 +1905,62 @@ def full_assessment_orchestrator_task(self, lead_id: Optional[int] = None, lead_
         # Update assessment status based on orchestration result
         final_status = 'completed' if success_rate >= 0.8 else 'partial' if success_rate >= 0.5 else 'failed'
         sync_update_assessment_status(lead_id, final_status)
+        
+        # Save the assessment data to the main assessments table
+        # Extract data from execution_result.assessment_data
+        assessment_data = execution_result.assessment_data
+        
+        # Update PageSpeed data if available
+        if 'pagespeed' in assessment_data and assessment_data['pagespeed']:
+            pagespeed_data_clean = prepare_assessment_data_for_storage(assessment_data['pagespeed'])
+            sync_update_assessment_field(lead_id, 'pagespeed_data', pagespeed_data_clean)
+            # Extract scores
+            if 'mobile_analysis' in assessment_data['pagespeed']:
+                mobile_score = assessment_data['pagespeed'].get('mobile_analysis', {}).get('core_web_vitals', {}).get('performance_score')
+                if mobile_score is not None:
+                    sync_update_assessment_field(lead_id, 'mobile_score', mobile_score)
+            if 'desktop_analysis' in assessment_data['pagespeed']:
+                desktop_score = assessment_data['pagespeed'].get('desktop_analysis', {}).get('core_web_vitals', {}).get('performance_score')
+                if desktop_score is not None:
+                    sync_update_assessment_field(lead_id, 'pagespeed_score', desktop_score)
+        
+        # Update Security data if available
+        if 'security' in assessment_data and assessment_data['security']:
+            security_data_clean = prepare_assessment_data_for_storage(assessment_data['security'])
+            sync_update_assessment_field(lead_id, 'security_headers', security_data_clean)
+            # Extract security score if available
+            security_score = assessment_data['security'].get('overall_score')
+            if security_score is not None:
+                sync_update_assessment_field(lead_id, 'security_score', security_score)
+        
+        # Update GBP data if available
+        if 'gbp' in assessment_data and assessment_data['gbp']:
+            gbp_data_clean = prepare_assessment_data_for_storage(assessment_data['gbp'])
+            sync_update_assessment_field(lead_id, 'gbp_data', gbp_data_clean)
+        
+        # Update SEMrush data if available
+        if 'semrush' in assessment_data and assessment_data['semrush']:
+            semrush_data_clean = prepare_assessment_data_for_storage(assessment_data['semrush'])
+            sync_update_assessment_field(lead_id, 'semrush_data', semrush_data_clean)
+        
+        # Update Visual Analysis data if available
+        if 'visual_analysis' in assessment_data and assessment_data['visual_analysis']:
+            visual_data_clean = prepare_assessment_data_for_storage(assessment_data['visual_analysis'])
+            sync_update_assessment_field(lead_id, 'visual_analysis', visual_data_clean)
+        
+        # Update LLM insights (score calculation and content generation)
+        llm_insights = {}
+        if 'score_calculation' in assessment_data and assessment_data['score_calculation']:
+            llm_insights['score_calculation'] = assessment_data['score_calculation']
+        if 'content_generation' in assessment_data and assessment_data['content_generation']:
+            llm_insights['content_generation'] = assessment_data['content_generation']
+        if llm_insights:
+            llm_insights_clean = prepare_assessment_data_for_storage(llm_insights)
+            sync_update_assessment_field(lead_id, 'llm_insights', llm_insights_clean)
+        
+        # Update total score from business impact calculation
+        if execution_result.business_score:
+            sync_update_assessment_field(lead_id, 'total_score', execution_result.business_score.overall_score)
         
         # Prepare task result
         task_result = {

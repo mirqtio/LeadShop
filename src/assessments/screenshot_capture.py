@@ -15,9 +15,12 @@ import io
 import httpx
 from PIL import Image
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
+from src.core.database import AsyncSessionLocal
 from src.models.assessment_cost import AssessmentCost
+from src.models.screenshot import Screenshot, ScreenshotType, ScreenshotStatus
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,7 @@ class ScreenshotResults(BaseModel):
     success: bool = Field(..., description="Overall capture success")
     desktop_screenshot: Optional[ScreenshotMetadata] = Field(None, description="Desktop screenshot data")
     mobile_screenshot: Optional[ScreenshotMetadata] = Field(None, description="Mobile screenshot data")
+    screenshots: List[Any] = Field(default_factory=list, description="List of screenshot objects for visual analysis")
     error_message: Optional[str] = Field(None, description="Error details if failed")
     total_duration_ms: int = Field(0, description="Total processing time")
     cost_records: List[Any] = Field(default_factory=list, description="Cost tracking records")
@@ -58,12 +62,12 @@ class ScreenshotOneClient:
     BASE_URL = "https://api.screenshotone.com/take"
     COST_PER_SCREENSHOT = 0.20  # $0.002 in cents
     MAX_FILE_SIZE = 500 * 1024  # 500KB
-    TIMEOUT = 30  # 30 seconds
+    TIMEOUT = 120  # 120 seconds to allow for ScreenshotOne's 90-second timeout
     MAX_RETRIES = 3
     
-    # Viewport configurations
-    DESKTOP_VIEWPORT = {"width": 1920, "height": 1080}
-    MOBILE_VIEWPORT = {"width": 390, "height": 844}
+    # Viewport configurations - reduced resolution to avoid file size limits
+    DESKTOP_VIEWPORT = {"width": 1280, "height": 720}  # 720p instead of 1080p
+    MOBILE_VIEWPORT = {"width": 390, "height": 844}  # Keep mobile as is
     
     def __init__(self):
         self.api_key = settings.SCREENSHOTONE_API_KEY
@@ -85,14 +89,14 @@ class ScreenshotOneClient:
             "viewport_height": viewport["height"],
             "device_scale_factor": 1,
             "format": "webp",
-            "image_quality": 85,
+            "image_quality": 75,  # Reduced from 85 to help with file size
             "block_ads": True,
             "block_cookie_banners": True,
             "block_trackers": True,
-            "full_page": True,
-            "lazy_load_wait": 3000,  # Wait 3s for lazy loading
-            "delay": 2000,  # Wait 2s before capture
-            "timeout": self.TIMEOUT * 1000  # Convert to milliseconds
+            "full_page": True,  # Capture full page as required
+            "delay": 3,  # Reduced from 30 seconds for faster capture
+            "timeout": 90,  # Maximum allowed timeout in seconds
+            "ignore_host_errors": True  # Continue even if site blocks requests
         }
         
         # Mobile-specific settings
@@ -100,8 +104,7 @@ class ScreenshotOneClient:
             params.update({
                 "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
                 "device_scale_factor": 2,
-                "mobile": True,
-                "touch": True
+                "full_page": False  # Disable full page for mobile to avoid file size issues
             })
         
         try:
@@ -128,16 +131,28 @@ class ScreenshotOneClient:
                     
                     duration_ms = int((time.time() - start_time) * 1000)
                     
-                    return ScreenshotMetadata(
+                    # Store the image data temporarily for potential S3 upload
+                    # This will be handled by the orchestrator or a separate upload process
+                    metadata = ScreenshotMetadata(
                         viewport=viewport_name,
                         width=actual_width,
                         height=actual_height,
                         file_size_bytes=file_size,
-                        format=image.format.lower(),
-                        quality=85,
+                        format=image.format.lower() if image.format else 'webp',
+                        quality=75,  # Updated to match API setting
                         capture_timestamp=datetime.now(timezone.utc).isoformat(),
                         capture_duration_ms=duration_ms
                     )
+                    
+                    # Store raw image data as a temporary attribute (not in the model)
+                    # This allows the caller to handle S3 upload if needed
+                    metadata._raw_image_data = image_data
+                    
+                    # Create a full base64 data URL for visual analysis
+                    # In production, this would be the S3 URL
+                    metadata.signed_url = f"data:image/webp;base64,{base64.b64encode(image_data).decode('utf-8')}"
+                    
+                    return metadata
                     
                 except Exception as img_error:
                     logger.error(f"Image validation failed: {img_error}")
@@ -195,13 +210,149 @@ class ScreenshotOneClient:
         """Close the HTTP client."""
         await self.client.aclose()
 
-async def capture_website_screenshots(url: str, lead_id: int) -> ScreenshotResults:
+async def save_screenshots_to_db(
+    assessment_id: int,
+    screenshot_results: ScreenshotResults,
+    db: AsyncSession
+) -> List[Screenshot]:
+    """
+    Save screenshot data to the database.
+    
+    Args:
+        assessment_id: ID of the assessment
+        screenshot_results: Screenshot capture results
+        db: Database session
+        
+    Returns:
+        List of created Screenshot objects
+    """
+    screenshots = []
+    
+    try:
+        # Save desktop screenshot if available
+        if screenshot_results.desktop_screenshot:
+            desktop_meta = screenshot_results.desktop_screenshot
+            
+            # Try to upload to S3 if available
+            s3_url = desktop_meta.s3_url
+            if not s3_url and hasattr(desktop_meta, '_raw_image_data'):
+                s3_url = await upload_screenshot_to_s3(desktop_meta, assessment_id, "desktop")
+            
+            desktop_screenshot = Screenshot(
+                assessment_id=assessment_id,
+                url=screenshot_results.url,
+                screenshot_type=ScreenshotType.DESKTOP,
+                viewport_width=1920,
+                viewport_height=1080,
+                device_scale_factor=1.0,
+                is_mobile=False,
+                image_url=s3_url or desktop_meta.signed_url,
+                image_format=desktop_meta.format,
+                image_width=desktop_meta.width,
+                image_height=desktop_meta.height,
+                file_size_bytes=desktop_meta.file_size_bytes,
+                capture_timestamp=datetime.fromisoformat(desktop_meta.capture_timestamp),
+                capture_duration_ms=desktop_meta.capture_duration_ms,
+                status=ScreenshotStatus.COMPLETED,
+                quality_score=desktop_meta.quality,
+                is_complete=True,
+                has_errors=False,
+                metadata={
+                    "viewport": desktop_meta.viewport,
+                    "quality": desktop_meta.quality,
+                    "s3_uploaded": s3_url is not None
+                }
+            )
+            db.add(desktop_screenshot)
+            screenshots.append(desktop_screenshot)
+            logger.info(f"Saved desktop screenshot for assessment {assessment_id}")
+        
+        # Save mobile screenshot if available
+        if screenshot_results.mobile_screenshot:
+            mobile_meta = screenshot_results.mobile_screenshot
+            
+            # Try to upload to S3 if available
+            s3_url = mobile_meta.s3_url
+            if not s3_url and hasattr(mobile_meta, '_raw_image_data'):
+                s3_url = await upload_screenshot_to_s3(mobile_meta, assessment_id, "mobile")
+            
+            mobile_screenshot = Screenshot(
+                assessment_id=assessment_id,
+                url=screenshot_results.url,
+                screenshot_type=ScreenshotType.MOBILE,
+                viewport_width=390,
+                viewport_height=844,
+                device_scale_factor=2.0,
+                is_mobile=True,
+                image_url=s3_url or mobile_meta.signed_url,
+                image_format=mobile_meta.format,
+                image_width=mobile_meta.width,
+                image_height=mobile_meta.height,
+                file_size_bytes=mobile_meta.file_size_bytes,
+                capture_timestamp=datetime.fromisoformat(mobile_meta.capture_timestamp),
+                capture_duration_ms=mobile_meta.capture_duration_ms,
+                status=ScreenshotStatus.COMPLETED,
+                quality_score=mobile_meta.quality,
+                is_complete=True,
+                has_errors=False,
+                metadata={
+                    "viewport": mobile_meta.viewport,
+                    "quality": mobile_meta.quality,
+                    "s3_uploaded": s3_url is not None
+                },
+                user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+            )
+            db.add(mobile_screenshot)
+            screenshots.append(mobile_screenshot)
+            logger.info(f"Saved mobile screenshot for assessment {assessment_id}")
+        
+        # Handle failed screenshots
+        if not screenshot_results.success:
+            # Create failed screenshot record for tracking
+            failed_screenshot = Screenshot(
+                assessment_id=assessment_id,
+                url=screenshot_results.url,
+                screenshot_type=ScreenshotType.DESKTOP,  # Default to desktop
+                viewport_width=1920,
+                viewport_height=1080,
+                device_scale_factor=1.0,
+                is_mobile=False,
+                status=ScreenshotStatus.FAILED,
+                error_message=screenshot_results.error_message,
+                processing_attempts=1,
+                has_errors=True,
+                metadata={
+                    "total_duration_ms": screenshot_results.total_duration_ms,
+                    "error": screenshot_results.error_message
+                }
+            )
+            db.add(failed_screenshot)
+            screenshots.append(failed_screenshot)
+            logger.warning(f"Saved failed screenshot record for assessment {assessment_id}")
+        
+        # Commit all screenshots
+        await db.commit()
+        
+        # Refresh objects to get generated IDs
+        for screenshot in screenshots:
+            await db.refresh(screenshot)
+        
+        return screenshots
+        
+    except Exception as e:
+        logger.error(f"Failed to save screenshots to database: {e}")
+        await db.rollback()
+        raise
+
+
+async def capture_website_screenshots(url: str, lead_id: int, assessment_id: Optional[int] = None) -> ScreenshotResults:
     """
     Main entry point for website screenshot capture.
     
     Args:
         url: Target website URL
         lead_id: Database ID of the lead
+        assessment_id: Optional assessment ID - if provided, screenshots will be saved to database
         
     Returns:
         Complete screenshot capture results with cost tracking
@@ -211,7 +362,17 @@ async def capture_website_screenshots(url: str, lead_id: int) -> ScreenshotResul
     
     try:
         if not settings.SCREENSHOTONE_API_KEY:
-            raise ScreenshotCaptureError("ScreenshotOne API key not configured")
+            logger.warning("ScreenshotOne API key not configured - returning mock results")
+            # Return mock results for testing when API key is not configured
+            return ScreenshotResults(
+                url=url,
+                success=False,
+                desktop_screenshot=None,
+                mobile_screenshot=None,
+                error_message="ScreenshotOne API key not configured",
+                total_duration_ms=0,
+                cost_records=[]
+            )
         
         # Create cost tracking records for both screenshots
         desktop_cost = AssessmentCost.create_screenshot_cost(
@@ -269,15 +430,45 @@ async def capture_website_screenshots(url: str, lead_id: int) -> ScreenshotResul
             
             logger.info(f"Screenshot capture completed for {url}: desktop={'✅' if desktop_screenshot else '❌'}, mobile={'✅' if mobile_screenshot else '❌'}")
             
-            return ScreenshotResults(
+            # Build screenshots list for visual analysis
+            screenshots_list = []
+            if desktop_screenshot:
+                # Create a simple dict instead of a type object
+                screenshots_list.append({
+                    'device_type': 'desktop',
+                    'screenshot_url': desktop_screenshot.s3_url or desktop_screenshot.signed_url or ''
+                })
+            if mobile_screenshot:
+                # Create a simple dict instead of a type object
+                screenshots_list.append({
+                    'device_type': 'mobile',
+                    'screenshot_url': mobile_screenshot.s3_url or mobile_screenshot.signed_url or ''
+                })
+            
+            # Create the results object
+            results = ScreenshotResults(
                 url=url,
                 success=success,
                 desktop_screenshot=desktop_screenshot,
                 mobile_screenshot=mobile_screenshot,
+                screenshots=screenshots_list,
                 error_message=error_message,
                 total_duration_ms=total_duration,
-                cost_records=cost_records
+                cost_records=[]  # Exclude SQLAlchemy objects to avoid serialization issues
             )
+            
+            # Save to database if assessment_id is provided
+            if assessment_id is not None:
+                try:
+                    async with AsyncSessionLocal() as db:
+                        saved_screenshots = await save_screenshots_to_db(assessment_id, results, db)
+                        logger.info(f"Saved {len(saved_screenshots)} screenshots to database for assessment {assessment_id}")
+                except Exception as db_error:
+                    logger.error(f"Failed to save screenshots to database: {db_error}")
+                    # Don't fail the entire operation if database save fails
+                    # The screenshots were captured successfully
+            
+            return results
             
         finally:
             await screenshot_client.close()
@@ -294,13 +485,24 @@ async def capture_website_screenshots(url: str, lead_id: int) -> ScreenshotResul
         
         logger.error(f"Screenshot capture failed for {url}: {e}")
         
-        return ScreenshotResults(
+        results = ScreenshotResults(
             url=url,
             success=False,
             error_message=str(e),
             total_duration_ms=total_duration,
-            cost_records=cost_records
+            cost_records=[]  # Exclude SQLAlchemy objects to avoid serialization issues
         )
+        
+        # Save failed screenshot record to database if assessment_id is provided
+        if assessment_id is not None:
+            try:
+                async with AsyncSessionLocal() as db:
+                    saved_screenshots = await save_screenshots_to_db(assessment_id, results, db)
+                    logger.info(f"Saved failed screenshot record to database for assessment {assessment_id}")
+            except Exception as db_error:
+                logger.error(f"Failed to save screenshot error to database: {db_error}")
+        
+        return results
     
     except Exception as e:
         # Update cost records with unexpected error
@@ -314,13 +516,24 @@ async def capture_website_screenshots(url: str, lead_id: int) -> ScreenshotResul
         
         logger.error(f"Unexpected error in screenshot capture for {url}: {e}")
         
-        return ScreenshotResults(
+        results = ScreenshotResults(
             url=url,
             success=False,
             error_message=f"Screenshot capture failed: {str(e)}",
             total_duration_ms=total_duration,
-            cost_records=cost_records
+            cost_records=[]  # Exclude SQLAlchemy objects to avoid serialization issues
         )
+        
+        # Save failed screenshot record to database if assessment_id is provided
+        if assessment_id is not None:
+            try:
+                async with AsyncSessionLocal() as db:
+                    saved_screenshots = await save_screenshots_to_db(assessment_id, results, db)
+                    logger.info(f"Saved failed screenshot record to database for assessment {assessment_id}")
+            except Exception as db_error:
+                logger.error(f"Failed to save screenshot error to database: {db_error}")
+        
+        return results
 
 # Add create_screenshot_cost method to AssessmentCost model
 def create_screenshot_cost_method(cls, lead_id: int, cost_cents: float = 0.20, viewport: str = "desktop", response_status: str = "success", response_time_ms: Optional[int] = None, error_message: Optional[str] = None):
@@ -359,3 +572,62 @@ def create_screenshot_cost_method(cls, lead_id: int, cost_cents: float = 0.20, v
 
 # Monkey patch the method to AssessmentCost
 AssessmentCost.create_screenshot_cost = classmethod(create_screenshot_cost_method)
+
+
+async def upload_screenshot_to_s3(
+    screenshot_metadata: ScreenshotMetadata,
+    assessment_id: int,
+    viewport: str
+) -> Optional[str]:
+    """
+    Upload screenshot image data to S3 if configured.
+    
+    Args:
+        screenshot_metadata: Screenshot metadata with raw image data
+        assessment_id: Assessment ID for organizing files
+        viewport: Viewport type (desktop/mobile)
+        
+    Returns:
+        S3 URL if uploaded successfully, None otherwise
+    """
+    try:
+        # Check if S3 is configured
+        if not settings.AWS_S3_BUCKET_NAME:
+            logger.debug("S3 not configured, skipping screenshot upload")
+            return None
+        
+        # Check if we have raw image data
+        if not hasattr(screenshot_metadata, '_raw_image_data'):
+            logger.warning("No raw image data available for S3 upload")
+            return None
+        
+        # Import S3 client (lazy import to avoid issues if not configured)
+        from src.core.storage.s3_client import S3Client
+        
+        # Generate S3 key
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        s3_key = f"screenshots/assessment_{assessment_id}/{viewport}_{timestamp}.{screenshot_metadata.format}"
+        
+        # Initialize S3 client and upload
+        s3_client = S3Client()
+        
+        # Upload the image data
+        file_url = s3_client.upload_file_object(
+            file_obj=io.BytesIO(screenshot_metadata._raw_image_data),
+            key=s3_key,
+            content_type=f"image/{screenshot_metadata.format}",
+            metadata={
+                "assessment_id": str(assessment_id),
+                "viewport": viewport,
+                "width": str(screenshot_metadata.width),
+                "height": str(screenshot_metadata.height),
+                "capture_timestamp": screenshot_metadata.capture_timestamp
+            }
+        )
+        
+        logger.info(f"Successfully uploaded screenshot to S3: {s3_key}")
+        return file_url
+        
+    except Exception as e:
+        logger.error(f"Failed to upload screenshot to S3: {e}")
+        return None

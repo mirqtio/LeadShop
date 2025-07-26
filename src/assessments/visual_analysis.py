@@ -16,9 +16,13 @@ from urllib.parse import quote
 import httpx
 from PIL import Image
 from pydantic import BaseModel, Field, validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
+from src.core.database import AsyncSessionLocal
 from src.models.assessment_cost import AssessmentCost
+from src.models.visual_analysis import VisualAnalysis, UXIssue, AnalysisStatus
+from src.models.assessment_results import AssessmentResults
 
 logger = logging.getLogger(__name__)
 
@@ -431,7 +435,190 @@ Base your evaluation on Nielsen's 10 Usability Heuristics and modern UX best pra
         """Close the HTTP client."""
         await self.client.aclose()
 
-async def assess_visual_analysis(url: str, desktop_screenshot_url: str, mobile_screenshot_url: str, lead_id: int) -> VisualAnalysisResults:
+async def save_visual_analysis_to_db(
+    db: AsyncSession,
+    assessment_id: int,
+    screenshot_id: int,
+    metrics: VisualAnalysisMetrics,
+    url: str
+) -> None:
+    """
+    Save visual analysis results to the database.
+    
+    Args:
+        db: Database session
+        assessment_id: ID of the assessment
+        screenshot_id: ID of the screenshot analyzed
+        metrics: Visual analysis metrics to save
+        url: URL that was analyzed
+    """
+    try:
+        # Create VisualAnalysis record
+        visual_analysis = VisualAnalysis(
+            assessment_id=assessment_id,
+            screenshot_id=screenshot_id,
+            analysis_timestamp=datetime.fromisoformat(metrics.analysis_timestamp),
+            analysis_duration_ms=metrics.processing_time_ms,
+            analyzer_version=VisualAnalyzer.MODEL,
+            
+            # Calculate overall scores from rubrics (convert 0-2 scale to 0-100)
+            design_score=int(metrics.overall_ux_score * 50),  # Convert 0-2 to 0-100
+            usability_score=int(metrics.overall_ux_score * 50),
+            
+            # Extract specific rubric scores
+            visual_hierarchy_score=next(
+                (r.score * 50 for r in metrics.rubrics if r.name == "visual_hierarchy"),
+                None
+            ),
+            whitespace_usage_score=next(
+                (r.score * 50 for r in metrics.rubrics if r.name == "white_space_balance"),
+                None
+            ),
+            readability_score=next(
+                (r.score * 50 for r in metrics.rubrics if r.name == "text_readability"),
+                None
+            ),
+            cta_effectiveness_score=next(
+                (r.score * 50 for r in metrics.rubrics if r.name == "cta_prominence"),
+                None
+            ),
+            mobile_friendliness_score=next(
+                (r.score * 50 for r in metrics.rubrics if r.name == "mobile_responsiveness"),
+                None
+            ),
+            brand_consistency_score=next(
+                (r.score * 50 for r in metrics.rubrics if r.name == "brand_cohesion"),
+                None
+            ),
+            trust_score=next(
+                (r.score * 50 for r in metrics.rubrics if r.name == "trust_signals_presence"),
+                None
+            ),
+            
+            # Store analysis insights
+            strengths=metrics.positive_elements,
+            weaknesses=metrics.critical_issues,
+            desktop_analysis=metrics.desktop_analysis,
+            mobile_analysis=metrics.mobile_analysis,
+            
+            # Store AI recommendations
+            ai_recommendations=[
+                {
+                    "rubric": rubric.name,
+                    "score": rubric.score,
+                    "explanation": rubric.explanation,
+                    "recommendations": rubric.recommendations
+                }
+                for rubric in metrics.rubrics
+            ],
+            
+            # Status and cost
+            status=AnalysisStatus.COMPLETED,
+            analysis_cost_cents=metrics.api_cost_dollars * 100,  # Convert dollars to cents
+            
+            # Store raw data for future reference
+            raw_analysis_data={
+                "rubrics": [r.dict() for r in metrics.rubrics],
+                "overall_ux_score": metrics.overall_ux_score,
+                "desktop_analysis": metrics.desktop_analysis,
+                "mobile_analysis": metrics.mobile_analysis,
+                "critical_issues": metrics.critical_issues,
+                "positive_elements": metrics.positive_elements
+            }
+        )
+        
+        db.add(visual_analysis)
+        await db.flush()  # Get the ID for foreign key relationships
+        
+        # Create UXIssue records for critical issues
+        for idx, issue in enumerate(metrics.critical_issues):
+            ux_issue = UXIssue(
+                visual_analysis_id=visual_analysis.id,
+                issue_type="critical",
+                issue_code=f"CRIT_{idx + 1}",
+                title=issue[:255],  # Truncate if needed
+                description=issue,
+                severity="high",
+                impact_score=80.0,  # High impact for critical issues
+                affects_mobile=True,
+                affects_desktop=True,
+                recommendation="Address this critical issue to improve user experience"
+            )
+            db.add(ux_issue)
+        
+        # Create UXIssue records for low-scoring rubrics
+        for rubric in metrics.rubrics:
+            if rubric.score == 0:  # Poor score
+                ux_issue = UXIssue(
+                    visual_analysis_id=visual_analysis.id,
+                    issue_type=rubric.name,
+                    issue_code=rubric.name.upper(),
+                    title=f"Poor {rubric.name.replace('_', ' ').title()}",
+                    description=rubric.explanation,
+                    severity="critical",
+                    impact_score=90.0,
+                    affects_mobile="mobile" in rubric.name or True,
+                    affects_desktop=True,
+                    recommendation="; ".join(rubric.recommendations) if rubric.recommendations else None
+                )
+                db.add(ux_issue)
+            elif rubric.score == 1:  # Fair score
+                ux_issue = UXIssue(
+                    visual_analysis_id=visual_analysis.id,
+                    issue_type=rubric.name,
+                    issue_code=rubric.name.upper(),
+                    title=f"Improve {rubric.name.replace('_', ' ').title()}",
+                    description=rubric.explanation,
+                    severity="medium",
+                    impact_score=50.0,
+                    affects_mobile="mobile" in rubric.name or True,
+                    affects_desktop=True,
+                    recommendation="; ".join(rubric.recommendations) if rubric.recommendations else None
+                )
+                db.add(ux_issue)
+        
+        # Update AssessmentResults table with visual rubric scores
+        from sqlalchemy import select
+        stmt = select(AssessmentResults).where(AssessmentResults.assessment_id == assessment_id)
+        result = await db.execute(stmt)
+        assessment_result = result.scalar_one_or_none()
+        if assessment_result:
+            # Map rubric names to database columns
+            rubric_mapping = {
+                "above_fold_clarity": "visual_above_fold_clarity",
+                "cta_prominence": "visual_cta_prominence",
+                "trust_signals_presence": "visual_trust_signals",
+                "visual_hierarchy": "visual_hierarchy_contrast",
+                "text_readability": "visual_text_readability",
+                "brand_cohesion": "visual_brand_cohesion",
+                "image_quality": "visual_image_quality",
+                "mobile_responsiveness": "visual_mobile_responsive",
+                "white_space_balance": "visual_clutter_balance"
+            }
+            
+            for rubric in metrics.rubrics:
+                if rubric.name in rubric_mapping:
+                    setattr(assessment_result, rubric_mapping[rubric.name], rubric.score)
+            
+            # Also update the overall UX score (converted to 0-100 scale)
+            assessment_result.visual_performance_score = int(metrics.overall_ux_score * 50)
+        
+        await db.commit()
+        logger.info(f"Successfully saved visual analysis to database for assessment {assessment_id}")
+        
+    except Exception as e:
+        logger.error(f"Failed to save visual analysis to database: {e}")
+        await db.rollback()
+        raise
+
+async def assess_visual_analysis(
+    url: str, 
+    desktop_screenshot_url: str, 
+    mobile_screenshot_url: str, 
+    lead_id: int,
+    assessment_id: Optional[int] = None,
+    screenshot_id: Optional[int] = None
+) -> VisualAnalysisResults:
     """
     Main entry point for visual UX analysis assessment.
     
@@ -440,6 +627,8 @@ async def assess_visual_analysis(url: str, desktop_screenshot_url: str, mobile_s
         desktop_screenshot_url: Desktop screenshot URL from PRP-006
         mobile_screenshot_url: Mobile screenshot URL from PRP-006
         lead_id: Database ID of the lead
+        assessment_id: Optional assessment ID for database persistence
+        screenshot_id: Optional screenshot ID for database persistence
         
     Returns:
         Complete visual analysis assessment results with cost tracking
@@ -472,6 +661,17 @@ async def assess_visual_analysis(url: str, desktop_screenshot_url: str, mobile_s
             cost_record.response_status = "success"
             cost_record.response_time_ms = int((end_time - start_time) * 1000)
             
+            # Save to database if assessment_id is provided
+            if assessment_id and screenshot_id:
+                async with AsyncSessionLocal() as db:
+                    await save_visual_analysis_to_db(
+                        db=db,
+                        assessment_id=assessment_id,
+                        screenshot_id=screenshot_id,
+                        metrics=metrics,
+                        url=url
+                    )
+            
             logger.info(f"Visual analysis completed for {url}: {metrics.overall_ux_score:.2f} UX score, {len(metrics.rubrics)} rubrics")
             
             return VisualAnalysisResults(
@@ -479,7 +679,7 @@ async def assess_visual_analysis(url: str, desktop_screenshot_url: str, mobile_s
                 success=True,
                 metrics=metrics,
                 total_duration_ms=int((end_time - start_time) * 1000),
-                cost_records=cost_records
+                cost_records=[]  # Exclude SQLAlchemy objects to avoid serialization issues
             )
             
         finally:
@@ -499,7 +699,7 @@ async def assess_visual_analysis(url: str, desktop_screenshot_url: str, mobile_s
             success=False,
             error_message=str(e),
             total_duration_ms=int((end_time - start_time) * 1000),
-            cost_records=cost_records
+            cost_records=[]  # Exclude SQLAlchemy objects to avoid serialization issues
         )
     
     except Exception as e:
@@ -517,7 +717,7 @@ async def assess_visual_analysis(url: str, desktop_screenshot_url: str, mobile_s
             success=False,
             error_message=f"Visual analysis failed: {str(e)}",
             total_duration_ms=int((end_time - start_time) * 1000),
-            cost_records=cost_records
+            cost_records=[]  # Exclude SQLAlchemy objects to avoid serialization issues
         )
 
 # Add create_visual_cost method to AssessmentCost model

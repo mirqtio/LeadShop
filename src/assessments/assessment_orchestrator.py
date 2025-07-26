@@ -237,6 +237,12 @@ class AssessmentOrchestrator:
                 component_result.end_time = datetime.now(timezone.utc)
                 component_result.duration_ms = int((component_result.end_time - component_result.start_time).total_seconds() * 1000)
                 
+                # Extract cost if present in results
+                if isinstance(result_data, dict) and 'cost_records' in result_data:
+                    cost_records = result_data['cost_records']
+                    if cost_records:
+                        component_result.cost_cents = sum(r.cost_cents for r in cost_records)
+                
                 # Update aggregated assessment data
                 execution.assessment_data[component_name] = result_data
                 
@@ -272,32 +278,32 @@ class AssessmentOrchestrator:
         
         if component_name == "pagespeed":
             # Import and call PageSpeed function (PRP-003)
-            # This would normally call the PageSpeed API
-            # For now, return mock data structure
-            return {
-                "mobile_performance_score": 65,
-                "desktop_performance_score": 78,
-                "mobile_lcp": 3.2,
-                "desktop_lcp": 2.1,
-                "mobile_fid": 85,
-                "desktop_fid": 45,
-                "mobile_cls": 0.15,
-                "desktop_cls": 0.08,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
-            }
+            from src.assessments.pagespeed import assess_pagespeed
+            company = lead_data.get('company', '')
+            
+            logger.info(f"Calling assess_pagespeed for {url}")
+            pagespeed_results = await assess_pagespeed(url, company, lead_id)
+            
+            # Extract cost records if present
+            if 'cost_records' in pagespeed_results:
+                # Cost will be extracted in the calling function
+                pass
+            
+            return pagespeed_results
             
         elif component_name == "security":
             # Import and call Security function (PRP-004)
-            # This would normally call the SSL Labs API
-            # For now, return mock data structure
-            return {
-                "https_enforced": True,
-                "ssl_grade": "B",
-                "security_headers": {"hsts": False, "csp": True},
-                "vulnerability_count": 1,
-                "certificate_info": {"issuer": "Let's Encrypt", "expires": "2024-12-01"},
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat()
-            }
+            from src.assessments.security_analysis import assess_security_headers
+            
+            logger.info(f"Calling assess_security_headers for {url}")
+            security_results = await assess_security_headers(url, lead_id)
+            
+            # Extract cost records if present
+            if 'cost_records' in security_results:
+                # Cost will be extracted in the calling function
+                pass
+            
+            return security_results
             
         elif component_name == "gbp":
             # Call Google Business Profile integration (PRP-005)
@@ -321,39 +327,67 @@ class AssessmentOrchestrator:
             
         elif component_name == "screenshots":
             # Call ScreenshotOne integration (PRP-006)
-            desktop_screenshot, mobile_screenshot = await capture_website_screenshots(url, lead_id)
+            screenshot_results = await capture_website_screenshots(url, lead_id)
             return {
-                "desktop_screenshot": desktop_screenshot.__dict__ if desktop_screenshot else None,
-                "mobile_screenshot": mobile_screenshot.__dict__ if mobile_screenshot else None,
-                "capture_timestamp": datetime.now(timezone.utc).isoformat()
+                "desktop_screenshot": screenshot_results.desktop_screenshot.dict() if screenshot_results.desktop_screenshot else None,
+                "mobile_screenshot": screenshot_results.mobile_screenshot.dict() if screenshot_results.mobile_screenshot else None,
+                "capture_timestamp": datetime.now(timezone.utc).isoformat(),
+                "success": screenshot_results.success,
+                "error_message": screenshot_results.error_message
             }
             
         elif component_name == "semrush":
             # Call SEMrush integration (PRP-007)
             semrush_data = await assess_semrush_domain(domain, lead_id)
-            return semrush_data.__dict__
+            # Use Pydantic's dict() method to properly serialize nested models
+            return semrush_data.dict() if hasattr(semrush_data, 'dict') else semrush_data.__dict__
             
         elif component_name == "visual_analysis":
             # Call Visual Analysis (PRP-008)
             screenshot_data = assessment_data.get("screenshots", {})
-            desktop_url = screenshot_data.get("desktop_screenshot", {}).get("screenshot_url") if screenshot_data.get("desktop_screenshot") else None
-            mobile_url = screenshot_data.get("mobile_screenshot", {}).get("screenshot_url") if screenshot_data.get("mobile_screenshot") else None
+            
+            # Extract screenshot URLs - check for s3_url or signed_url
+            desktop_screenshot = screenshot_data.get("desktop_screenshot", {})
+            mobile_screenshot = screenshot_data.get("mobile_screenshot", {})
+            
+            desktop_url = None
+            mobile_url = None
+            
+            if desktop_screenshot:
+                desktop_url = desktop_screenshot.get("s3_url") or desktop_screenshot.get("signed_url")
+            if mobile_screenshot:
+                mobile_url = mobile_screenshot.get("s3_url") or mobile_screenshot.get("signed_url")
             
             if desktop_url and mobile_url:
                 visual_analysis = await assess_visual_analysis(url, desktop_url, mobile_url, lead_id)
-                return visual_analysis.__dict__
+                # Use Pydantic's dict() method if available
+                return visual_analysis.dict() if hasattr(visual_analysis, 'dict') else visual_analysis.__dict__
             else:
-                raise AssessmentOrchestratorError("Screenshots required for visual analysis")
+                # Return mock results when screenshots are not available
+                logger.warning("Screenshots not available for visual analysis - returning mock results")
+                from src.assessments.visual_analysis import VisualAnalysisResults
+                return VisualAnalysisResults(
+                    url=url,
+                    desktop_score=0,
+                    mobile_score=0,
+                    responsive_score=0,
+                    overall_score=0,
+                    issues=[],
+                    recommendations=[],
+                    error_message="Screenshots not available for visual analysis"
+                ).dict()
                 
         elif component_name == "score_calculation":
             # Call Score Calculator (PRP-009)
             business_score = await calculate_business_score(lead_id, assessment_data, lead_data)
-            return business_score.__dict__
+            # Use Pydantic's dict() method if available
+            return business_score.dict() if hasattr(business_score, 'dict') else business_score.__dict__
             
         elif component_name == "content_generation":
             # Call Content Generator (PRP-010)
             marketing_content = await generate_marketing_content(lead_id, lead_data, assessment_data)
-            return marketing_content.__dict__
+            # Use Pydantic's dict() method if available
+            return marketing_content.dict() if hasattr(marketing_content, 'dict') else marketing_content.__dict__
             
         else:
             raise AssessmentOrchestratorError(f"Unknown component: {component_name}")
@@ -472,27 +506,25 @@ AssessmentCost.create_orchestration_cost = classmethod(create_orchestration_cost
 async def save_decomposed_assessment_results(db, assessment_id: int, execution: AssessmentExecution) -> None:
     """
     Save decomposed assessment results to the assessment_results table.
+    Uses the new decompose_metrics module to extract all 53 individual metrics.
     
     Args:
         db: Database session
         assessment_id: ID of the assessment record
         execution: AssessmentExecution with all component results
     """
-    from src.models.assessment_results import AssessmentResults
-    from sqlalchemy import select
+    # Use the new decompose_metrics module which extracts all 53 metrics
+    from src.assessment.decompose_metrics import decompose_and_store_metrics
     
-    # Check if results already exist for this assessment
-    existing_results = await db.execute(
-        select(AssessmentResults).where(AssessmentResults.assessment_id == assessment_id)
-    )
-    existing = existing_results.scalar_one_or_none()
+    # Call the decomposition function which handles all the extraction logic
+    result = await decompose_and_store_metrics(db, assessment_id)
     
-    if existing:
-        # Update existing record instead of creating a new one
-        results = existing
+    if result:
+        logger.info(f"Successfully saved decomposed assessment results for assessment {assessment_id}")
     else:
-        # Create new AssessmentResults record
-        results = AssessmentResults(assessment_id=assessment_id)
+        logger.error(f"Failed to save decomposed assessment results for assessment {assessment_id}")
+    
+    return
     
     # Extract PageSpeed metrics
     if execution.pagespeed_result and execution.pagespeed_result.data:

@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import make_asgi_app
 import logging
 import sys
@@ -69,6 +70,9 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Add Prometheus metrics endpoint
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")

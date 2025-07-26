@@ -13,9 +13,12 @@ from urllib.parse import quote
 
 import httpx
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
+from src.core.database import AsyncSessionLocal
 from src.models.assessment_cost import AssessmentCost
+from src.models.gbp import GBPAnalysis, GBPBusinessHours, GBPReviews, GBPPhotos
 
 logger = logging.getLogger(__name__)
 
@@ -386,7 +389,154 @@ class GBPClient:
         )
 
 
-async def assess_google_business_profile(business_name: str, address: Optional[str], city: Optional[str], state: Optional[str], lead_id: int) -> Dict[str, Any]:
+async def save_gbp_analysis_to_db(
+    db: AsyncSession,
+    assessment_id: int,
+    gbp_data: GBPData,
+    search_results_count: int,
+    analysis_duration_ms: int,
+    error_message: Optional[str] = None
+) -> GBPAnalysis:
+    """
+    Save GBP analysis data to database tables.
+    
+    Args:
+        db: Database session
+        assessment_id: Assessment ID to link to
+        gbp_data: GBP data from API (Pydantic model)
+        search_results_count: Number of search results returned
+        analysis_duration_ms: Analysis duration in milliseconds
+        error_message: Error message if any
+        
+    Returns:
+        Created GBPAnalysis instance
+    """
+    try:
+        # Parse datetime strings
+        data_freshness = None
+        if gbp_data.data_freshness:
+            try:
+                data_freshness = datetime.fromisoformat(gbp_data.data_freshness.replace('Z', '+00:00'))
+            except:
+                pass
+                
+        extraction_timestamp = datetime.fromisoformat(gbp_data.extraction_timestamp.replace('Z', '+00:00'))
+        
+        # Create main GBP analysis record
+        gbp_analysis = GBPAnalysis(
+            assessment_id=assessment_id,
+            place_id=gbp_data.place_id,
+            business_name=gbp_data.name,
+            formatted_address=gbp_data.formatted_address,
+            phone_number=gbp_data.phone_number,
+            website=gbp_data.website,
+            latitude=gbp_data.location.get('latitude') if gbp_data.location else None,
+            longitude=gbp_data.location.get('longitude') if gbp_data.location else None,
+            is_verified=gbp_data.status.verified,
+            is_open_now=gbp_data.status.is_open_now,
+            is_permanently_closed=gbp_data.status.is_permanently_closed,
+            is_temporarily_closed=gbp_data.status.temporarily_closed,
+            business_status=gbp_data.status.business_status,
+            total_reviews=gbp_data.reviews.total_reviews,
+            average_rating=gbp_data.reviews.average_rating,
+            recent_90d_reviews=gbp_data.reviews.recent_90d_reviews,
+            rating_trend=gbp_data.reviews.rating_trend,
+            total_photos=gbp_data.photos.total_photos,
+            owner_photos=gbp_data.photos.owner_photos,
+            customer_photos=gbp_data.photos.customer_photos,
+            last_photo_date=datetime.fromisoformat(gbp_data.photos.last_photo_date.replace('Z', '+00:00')) if gbp_data.photos.last_photo_date else None,
+            primary_category=gbp_data.categories[0] if gbp_data.categories else None,
+            categories=gbp_data.categories,
+            is_24_hours=gbp_data.hours.is_24_hours,
+            timezone=gbp_data.hours.timezone,
+            match_confidence=gbp_data.match_confidence,
+            search_query=gbp_data.search_query,
+            search_results_count=search_results_count,
+            data_freshness=data_freshness,
+            extraction_timestamp=extraction_timestamp,
+            analysis_duration_ms=analysis_duration_ms,
+            error_message=error_message
+        )
+        
+        db.add(gbp_analysis)
+        await db.flush()  # Get the ID before adding related records
+        
+        # Add business hours
+        for day, hours in gbp_data.hours.regular_hours.items():
+            if hours:
+                # Parse hours text (e.g., "09:00 - 17:00")
+                parts = hours.split(' - ')
+                open_time = parts[0].strip() if len(parts) > 0 else None
+                close_time = parts[1].strip() if len(parts) > 1 else None
+                
+                business_hours = GBPBusinessHours(
+                    gbp_analysis_id=gbp_analysis.id,
+                    day_of_week=day,
+                    open_time=open_time,
+                    close_time=close_time,
+                    is_closed=False,
+                    hours_text=hours
+                )
+                db.add(business_hours)
+        
+        # Add closed days (days not in regular_hours)
+        all_days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        for day in all_days:
+            if day not in gbp_data.hours.regular_hours:
+                business_hours = GBPBusinessHours(
+                    gbp_analysis_id=gbp_analysis.id,
+                    day_of_week=day,
+                    is_closed=True,
+                    hours_text="Closed"
+                )
+                db.add(business_hours)
+        
+        # Add review distribution
+        if gbp_data.reviews.rating_distribution:
+            total_reviews = gbp_data.reviews.total_reviews or 1  # Avoid division by zero
+            for rating_str, count in gbp_data.reviews.rating_distribution.items():
+                rating = int(rating_str)
+                percentage = (count / total_reviews * 100) if total_reviews > 0 else 0
+                
+                review = GBPReviews(
+                    gbp_analysis_id=gbp_analysis.id,
+                    rating=rating,
+                    review_count=count,
+                    percentage=percentage
+                )
+                db.add(review)
+        
+        # Add photo categories
+        if gbp_data.photos.photo_categories:
+            total_photos = gbp_data.photos.total_photos or 1  # Avoid division by zero
+            for category, count in gbp_data.photos.photo_categories.items():
+                percentage = (count / total_photos * 100) if total_photos > 0 else 0
+                
+                photo = GBPPhotos(
+                    gbp_analysis_id=gbp_analysis.id,
+                    category=category,
+                    photo_count=count,
+                    percentage=percentage
+                )
+                db.add(photo)
+        
+        await db.commit()
+        return gbp_analysis
+        
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to save GBP analysis to database: {str(e)}")
+        raise
+
+
+async def assess_google_business_profile(
+    business_name: str, 
+    address: Optional[str], 
+    city: Optional[str], 
+    state: Optional[str], 
+    lead_id: int,
+    assessment_id: Optional[int] = None
+) -> Dict[str, Any]:
     """
     Main entry point for Google Business Profile assessment.
     
@@ -396,6 +546,7 @@ async def assess_google_business_profile(business_name: str, address: Optional[s
         city: Business city (optional)
         state: Business state (optional)
         lead_id: Database ID of the lead
+        assessment_id: Assessment ID to save data to (optional)
         
     Returns:
         Complete GBP assessment result with cost tracking
@@ -437,14 +588,28 @@ async def assess_google_business_profile(business_name: str, address: Optional[s
                 extraction_timestamp=datetime.now(timezone.utc).isoformat()
             )
             
-            return {
+            result = {
                 "gbp_data": empty_gbp.dict(),
                 "search_results_count": 0,
                 "match_found": False,
-                "cost_records": cost_records,
+                "cost_records": [],  # Exclude SQLAlchemy objects to avoid serialization issues
                 "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
                 "analysis_duration_ms": int((time.time() - start_time) * 1000)
             }
+            
+            # Save to database if assessment_id provided
+            if assessment_id:
+                async with AsyncSessionLocal() as db:
+                    await save_gbp_analysis_to_db(
+                        db=db,
+                        assessment_id=assessment_id,
+                        gbp_data=empty_gbp,
+                        search_results_count=0,
+                        analysis_duration_ms=int((time.time() - start_time) * 1000),
+                        error_message="No results found"
+                    )
+            
+            return result
         
         # Find best match using fuzzy matching
         best_match, confidence = gbp_client.matcher.find_best_match(
@@ -463,15 +628,29 @@ async def assess_google_business_profile(business_name: str, address: Optional[s
                 extraction_timestamp=datetime.now(timezone.utc).isoformat()
             )
             
-            return {
+            result = {
                 "gbp_data": low_confidence_gbp.dict(),
                 "search_results_count": len(search_results),
                 "match_found": False,
                 "match_confidence": confidence,
-                "cost_records": cost_records,
+                "cost_records": [],  # Exclude SQLAlchemy objects to avoid serialization issues
                 "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
                 "analysis_duration_ms": int((time.time() - start_time) * 1000)
             }
+            
+            # Save to database if assessment_id provided
+            if assessment_id:
+                async with AsyncSessionLocal() as db:
+                    await save_gbp_analysis_to_db(
+                        db=db,
+                        assessment_id=assessment_id,
+                        gbp_data=low_confidence_gbp,
+                        search_results_count=len(search_results),
+                        analysis_duration_ms=int((time.time() - start_time) * 1000),
+                        error_message=f"Low confidence match: {confidence:.2f}"
+                    )
+            
+            return result
         
         # Extract comprehensive GBP data
         search_query = f"{business_name} {city or ''} {state or ''}".strip()
@@ -484,15 +663,28 @@ async def assess_google_business_profile(business_name: str, address: Optional[s
         
         logger.info(f"GBP assessment completed for {business_name}: confidence {confidence:.2f}")
         
-        return {
+        result = {
             "gbp_data": gbp_data.dict(),
             "search_results_count": len(search_results),
             "match_found": True,
             "match_confidence": confidence,
-            "cost_records": cost_records,
+            "cost_records": [],  # Exclude SQLAlchemy objects to avoid serialization issues
             "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
             "analysis_duration_ms": int((end_time - start_time) * 1000)
         }
+        
+        # Save to database if assessment_id provided
+        if assessment_id:
+            async with AsyncSessionLocal() as db:
+                await save_gbp_analysis_to_db(
+                    db=db,
+                    assessment_id=assessment_id,
+                    gbp_data=gbp_data,
+                    search_results_count=len(search_results),
+                    analysis_duration_ms=int((end_time - start_time) * 1000)
+                )
+        
+        return result
         
     except GBPIntegrationError as e:
         # Update cost record with error

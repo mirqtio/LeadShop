@@ -274,7 +274,7 @@ def get_pagespeed_client() -> PageSpeedClient:
     return _pagespeed_client
 
 
-async def assess_pagespeed(url: str, company: str = None, lead_id: int = None) -> Dict[str, Any]:
+async def assess_pagespeed(url: str, company: str = None, lead_id: int = None, assessment_id: int = None) -> Dict[str, Any]:
     """
     Convenience function for PageSpeed assessment with cost tracking
     
@@ -282,12 +282,17 @@ async def assess_pagespeed(url: str, company: str = None, lead_id: int = None) -
         url: URL to analyze
         company: Optional company name for context
         lead_id: Optional lead ID for cost tracking
+        assessment_id: Optional assessment ID for storing detailed results
         
     Returns:
         Dict containing assessment results for database storage
     """
-    from src.core.database import get_db
+    from src.core.database import get_db, AsyncSessionLocal
     from src.models.assessment_cost import AssessmentCost
+    from src.models.pagespeed import (
+        PageSpeedAnalysis, PageSpeedAudit, PageSpeedScreenshot,
+        PageSpeedElement, PageSpeedEntity, PageSpeedOpportunity
+    )
     
     cost_records = []
     
@@ -313,7 +318,20 @@ async def assess_pagespeed(url: str, company: str = None, lead_id: int = None) -
                 )
                 cost_records.append(cost_record)
         
-        # Prepare data for database storage
+        # Save detailed PageSpeed data to new tables if assessment_id provided
+        if assessment_id:
+            async with AsyncSessionLocal() as db:
+                try:
+                    await save_pagespeed_analysis_to_db(
+                        db, assessment_id, mobile_result, desktop_result, cost_records
+                    )
+                    await db.commit()
+                    logger.info(f"Saved detailed PageSpeed data for assessment {assessment_id}")
+                except Exception as db_exc:
+                    await db.rollback()
+                    logger.error(f"Failed to save PageSpeed data to database: {db_exc}")
+        
+        # Prepare data for database storage (backward compatibility)
         assessment_data = {
             "url": url,
             "company": company,
@@ -325,7 +343,7 @@ async def assess_pagespeed(url: str, company: str = None, lead_id: int = None) -
             "analysis_timestamp": mobile_result.analysis_timestamp,
             "total_cost_cents": sum(r.cost_cents for r in results.values()),
             "api_calls_made": len(results),
-            "cost_records": cost_records
+            "cost_records": []  # Exclude SQLAlchemy objects to avoid serialization issues
         }
         
         return assessment_data
@@ -358,3 +376,217 @@ async def assess_pagespeed(url: str, company: str = None, lead_id: int = None) -
         
         logger.error(f"Unexpected error in PageSpeed assessment", url=url, error=str(exc))
         raise PageSpeedError(f"Assessment failed: {exc}")
+
+
+async def save_pagespeed_analysis_to_db(
+    db,
+    assessment_id: int,
+    mobile_result: PageSpeedResult,
+    desktop_result: Optional[PageSpeedResult],
+    cost_records: List[Any]
+) -> None:
+    """
+    Save PageSpeed analysis results to the new database schema
+    
+    Args:
+        db: Database session
+        assessment_id: Assessment ID to link results to
+        mobile_result: Mobile PageSpeed results
+        desktop_result: Optional desktop PageSpeed results
+        cost_records: Cost tracking records
+    """
+    from src.models.pagespeed import (
+        PageSpeedAnalysis, PageSpeedAudit, PageSpeedScreenshot,
+        PageSpeedElement, PageSpeedEntity, PageSpeedOpportunity
+    )
+    
+    # Helper function to save analysis for a strategy
+    async def save_strategy_analysis(result: PageSpeedResult, strategy: str):
+        # Extract lighthouse result
+        lighthouse = result.lighthouse_result
+        
+        # Create main analysis record
+        analysis = PageSpeedAnalysis(
+            assessment_id=assessment_id,
+            url=result.url,
+            strategy=strategy,
+            analysis_timestamp=datetime.fromisoformat(result.analysis_timestamp),
+            analysis_duration_ms=result.analysis_duration_ms,
+            cost_cents=result.cost_cents,
+            
+            # URLs
+            requested_url=lighthouse.get('requestedUrl'),
+            final_url=lighthouse.get('finalUrl'),
+            main_document_url=lighthouse.get('mainDocumentUrl'),
+            final_displayed_url=lighthouse.get('finalDisplayedUrl'),
+            
+            # Core Web Vitals
+            first_contentful_paint_ms=int(result.core_web_vitals.first_contentful_paint) if result.core_web_vitals.first_contentful_paint else None,
+            largest_contentful_paint_ms=int(result.core_web_vitals.largest_contentful_paint) if result.core_web_vitals.largest_contentful_paint else None,
+            cumulative_layout_shift=result.core_web_vitals.cumulative_layout_shift,
+            total_blocking_time_ms=int(result.core_web_vitals.total_blocking_time) if result.core_web_vitals.total_blocking_time else None,
+            time_to_interactive_ms=int(result.core_web_vitals.time_to_interactive) if result.core_web_vitals.time_to_interactive else None,
+            performance_score=result.core_web_vitals.performance_score,
+            
+            # Category scores
+            accessibility_score=extract_category_score(lighthouse, 'accessibility'),
+            best_practices_score=extract_category_score(lighthouse, 'best-practices'),
+            seo_score=extract_category_score(lighthouse, 'seo'),
+            pwa_score=extract_category_score(lighthouse, 'pwa'),
+            
+            # Metadata
+            lighthouse_version=lighthouse.get('lighthouseVersion'),
+            user_agent=lighthouse.get('userAgent'),
+            fetch_time=datetime.fromisoformat(lighthouse['fetchTime']) if lighthouse.get('fetchTime') else None,
+            environment=lighthouse.get('environment'),
+            config_settings=lighthouse.get('configSettings'),
+            timing_total_ms=lighthouse.get('timing', {}).get('total'),
+            
+            # Benchmark and credits
+            benchmark_index=lighthouse.get('benchmarkIndex'),
+            credits=lighthouse.get('credits'),
+            
+            # Raw data
+            raw_lighthouse_result=lighthouse,
+            i18n_strings=lighthouse.get('i18n')
+        )
+        
+        # Extract Speed Index if available
+        audits = lighthouse.get('audits', {})
+        if 'speed-index' in audits:
+            analysis.speed_index_ms = int(audits['speed-index'].get('numericValue', 0))
+        
+        db.add(analysis)
+        await db.flush()  # Get the ID
+        
+        # Save all audits
+        for audit_id, audit_data in audits.items():
+            audit = PageSpeedAudit(
+                pagespeed_analysis_id=analysis.id,
+                audit_id=audit_id,
+                title=audit_data.get('title'),
+                description=audit_data.get('description'),
+                score=audit_data.get('score'),
+                score_display_mode=audit_data.get('scoreDisplayMode'),
+                display_value=audit_data.get('displayValue'),
+                explanation=audit_data.get('explanation'),
+                error_message=audit_data.get('errorMessage'),
+                warnings=audit_data.get('warnings'),
+                details=audit_data.get('details'),
+                numeric_value=audit_data.get('numericValue'),
+                numeric_unit=audit_data.get('numericUnit')
+            )
+            db.add(audit)
+        
+        # Save screenshots
+        if 'audits' in lighthouse:
+            # Full page screenshot
+            if 'full-page-screenshot' in audits:
+                screenshot_data = audits['full-page-screenshot'].get('details', {})
+                if screenshot_data.get('screenshot'):
+                    screenshot = PageSpeedScreenshot(
+                        pagespeed_analysis_id=analysis.id,
+                        screenshot_type='full_page',
+                        data=screenshot_data['screenshot'].get('data'),
+                        height=screenshot_data['screenshot'].get('height'),
+                        width=screenshot_data['screenshot'].get('width'),
+                        mime_type=screenshot_data['screenshot'].get('mimeType', 'image/webp')
+                    )
+                    db.add(screenshot)
+            
+            # Screenshot thumbnails from filmstrip
+            if 'screenshot-thumbnails' in audits:
+                filmstrip = audits['screenshot-thumbnails'].get('details', {}).get('items', [])
+                for frame in filmstrip:
+                    if frame.get('data'):
+                        screenshot = PageSpeedScreenshot(
+                            pagespeed_analysis_id=analysis.id,
+                            screenshot_type='filmstrip',
+                            data=frame.get('data'),
+                            timestamp_ms=frame.get('timing'),
+                            mime_type='image/jpeg'
+                        )
+                        db.add(screenshot)
+        
+        # Save element positioning data
+        if 'full-page-screenshot' in audits:
+            nodes = audits['full-page-screenshot'].get('details', {}).get('nodes', {})
+            for node_id, node_data in nodes.items():
+                element = PageSpeedElement(
+                    pagespeed_analysis_id=analysis.id,
+                    node_id=node_id,
+                    selector=node_data.get('selector'),
+                    snippet=node_data.get('snippet'),
+                    bounding_rect=node_data.get('boundingRect'),
+                    node_label=node_data.get('nodeLabel'),
+                    element_type=node_data.get('type')
+                )
+                db.add(element)
+        
+        # Save third-party entities
+        if 'third-party-summary' in audits:
+            entities = audits['third-party-summary'].get('details', {}).get('items', [])
+            for entity_data in entities:
+                if entity_data.get('entity'):
+                    entity_info = entity_data['entity']
+                    entity = PageSpeedEntity(
+                        pagespeed_analysis_id=analysis.id,
+                        name=entity_info.get('text', entity_info.get('url', 'Unknown')),
+                        homepage=entity_info.get('url'),
+                        category=entity_data.get('category'),
+                        is_first_party=entity_data.get('isFirstParty', False),
+                        is_unrecognized=entity_data.get('isUnrecognized', False),
+                        total_bytes=entity_data.get('transferSize'),
+                        main_thread_time_ms=entity_data.get('mainThreadTime'),
+                        blocking_time_ms=entity_data.get('blockingTime'),
+                        transfer_size_bytes=entity_data.get('transferSize')
+                    )
+                    db.add(entity)
+        
+        # Save performance opportunities
+        opportunities = []
+        for audit_id, audit_data in audits.items():
+            # Check if this audit represents an opportunity (has savings)
+            details = audit_data.get('details', {})
+            if details.get('type') == 'opportunity' and details.get('overallSavingsMs'):
+                opportunity = PageSpeedOpportunity(
+                    pagespeed_analysis_id=analysis.id,
+                    audit_id=audit_id,
+                    title=audit_data.get('title'),
+                    description=audit_data.get('description'),
+                    savings_ms=int(details.get('overallSavingsMs', 0)),
+                    savings_bytes=int(details.get('overallSavingsBytes', 0)) if details.get('overallSavingsBytes') else None,
+                    rating='fail' if audit_data.get('score', 1) < 0.5 else 'average' if audit_data.get('score', 1) < 0.9 else 'pass',
+                    details=details
+                )
+                db.add(opportunity)
+    
+    # Save mobile analysis (always available)
+    await save_strategy_analysis(mobile_result, 'mobile')
+    
+    # Save desktop analysis if available
+    if desktop_result:
+        await save_strategy_analysis(desktop_result, 'desktop')
+    
+    # Save cost records
+    for cost_record in cost_records:
+        db.add(cost_record)
+
+
+def extract_category_score(lighthouse_result: Dict[str, Any], category: str) -> Optional[int]:
+    """
+    Extract category score from Lighthouse result
+    
+    Args:
+        lighthouse_result: Lighthouse result data
+        category: Category name (e.g., 'performance', 'accessibility')
+        
+    Returns:
+        Score as integer (0-100) or None if not found
+    """
+    categories = lighthouse_result.get('categories', {})
+    if category in categories:
+        score = categories[category].get('score')
+        if score is not None:
+            return int(score * 100)
+    return None
